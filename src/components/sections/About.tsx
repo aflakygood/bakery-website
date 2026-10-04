@@ -11,6 +11,10 @@ import image0241 from "@/assets/gallery/IMGC0241_Original.jpg";
 import image0079 from "@/assets/gallery/IMGC0079_Original.jpg";
 import image0090 from "@/assets/gallery/IMGC0090_Original.jpg";
 import image9697 from "@/assets/gallery/IMGC9697.CR3.jpg";
+import image0344 from "@/assets/gallery/IMGC0344_Original.jpg";
+import image9854 from "@/assets/gallery/IMGC9854.CR3.jpg";
+import image0306 from "@/assets/gallery/IMGC0306_Original.jpg";
+import image9615 from "@/assets/gallery/IMGC9615.CR3.jpg";
 
 const gallery = [
   { src: image20260427, alt: "A flaky good bakery creation" },
@@ -23,6 +27,10 @@ const gallery = [
   { src: image0079, alt: "A flaky good bakery creation" },
   { src: image0090, alt: "A flaky good bakery creation" },
   { src: image9697, alt: "A flaky good bakery creation" },
+  { src: image0344, alt: "A flaky good bakery creation" },
+  { src: image9854, alt: "A flaky good bakery creation" },
+  { src: image0306, alt: "A flaky good bakery creation" },
+  { src: image9615, alt: "A flaky good bakery creation" },
 ];
 
 const pillars = [
