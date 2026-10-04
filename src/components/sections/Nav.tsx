@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Menu, X, Instagram } from "lucide-react";
-import logoIcon from "@/assets/logo-icon-v2.png.asset.json";
+import logoIcon from "@/assets/logo-icon-v2.png";
 
 const links = [
   { href: "#about", label: "about" },
@@ -30,7 +30,7 @@ export default function Nav() {
     >
       <nav className="relative mx-auto flex max-w-[1400px] items-center justify-between px-5 py-4 md:px-10 md:py-5">
         <a href="#top" className="flex items-center gap-2 shrink-0" aria-label="a flaky good.">
-          <img src={logoIcon.url} alt="a flaky good." className="h-11 w-11 md:h-12 md:w-12" />
+          <img src={logoIcon} alt="a flaky good." className="h-11 w-11 md:h-12 md:w-12" />
         </a>
 
         <ul className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-9 font-mono text-[12px] lowercase tracking-brand text-primary md:flex">
@@ -44,7 +44,7 @@ export default function Nav() {
         </ul>
 
         <a
-          href="https://instagram.com"
+          href="https://www.instagram.com/aflakygood/"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Instagram"

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import wordmark from "@/assets/logo-wordmark.png.asset.json";
+import wordmark from "@/assets/logo-wordmark.png";
 
 export default function Hero() {
   return (
@@ -7,7 +7,7 @@ export default function Hero() {
       <div className="bg-stripes">
         <div className="relative mx-auto flex min-h-[55svh] max-w-[1400px] items-center justify-center px-6 py-12 md:py-16">
           <motion.img
-            src={wordmark.url}
+            src={wordmark}
             alt="a flaky good. — boulangerie · patisserie"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}

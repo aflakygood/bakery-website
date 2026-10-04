@@ -55,7 +55,7 @@ export default function Drop() {
               </div>
 
               <a
-                href="https://instagram.com/"
+                href="https://www.instagram.com/aflakygood/"
                 target="_blank"
                 rel="noreferrer"
                 className="group inline-flex items-center justify-between gap-3 rounded-sm bg-primary px-5 py-4 font-mono text-[12px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]"

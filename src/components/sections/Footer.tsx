@@ -1,5 +1,5 @@
 import { Instagram, ArrowUpRight } from "lucide-react";
-import logoIcon from "@/assets/logo-icon.png.asset.json";
+import logoIcon from "@/assets/logo-icon.png";
 
 export default function Footer() {
   return (
@@ -15,7 +15,7 @@ export default function Footer() {
                 pre-orders, weekly drops, allergen info and pickup details — all live on Instagram.
               </p>
               <a
-                href="https://instagram.com/"
+                href="https://www.instagram.com/aflakygood/"
                 target="_blank"
                 rel="noreferrer"
                 className="group mt-8 inline-flex items-center gap-3 rounded-sm border border-primary/30 px-5 py-3.5 font-mono text-[12px] lowercase tracking-brand text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
@@ -43,7 +43,7 @@ export default function Footer() {
 
           <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-primary/15 pt-8 md:flex-row">
             <div className="flex items-center gap-3">
-              <img src={logoIcon.url} alt="a flaky good." className="h-9 w-9" />
+              <img src={logoIcon} alt="a flaky good." className="h-9 w-9" />
               <span className="font-display text-sm font-black tracking-brand text-primary">a flaky good.</span>
             </div>
             <p className="font-mono text-[10px] lowercase tracking-brand text-primary/55">
