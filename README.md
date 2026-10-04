@@ -1,2 +1,0 @@
-# bakery-website
-Bakery website
