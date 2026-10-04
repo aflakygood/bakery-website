@@ -1,15 +1,28 @@
 import { motion } from "framer-motion";
 import { useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import image20260427 from "@/assets/gallery/20260427_201323.jpg";
+import image20260516 from "@/assets/gallery/20260516_145815.jpg";
+import image9093 from "@/assets/gallery/IMGC9093.CR3.jpg";
+import image9609 from "@/assets/gallery/IMGC9609.CR3.jpg";
+import image9696 from "@/assets/gallery/IMGC9696.CR3.jpg";
+import image0056 from "@/assets/gallery/IMGC0056_Original.jpg";
+import image0241 from "@/assets/gallery/IMGC0241_Original.jpg";
+import image0079 from "@/assets/gallery/IMGC0079_Original.jpg";
+import image0090 from "@/assets/gallery/IMGC0090_Original.jpg";
+import image9697 from "@/assets/gallery/IMGC9697.CR3.jpg";
 
 const gallery = [
-  { src: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=1200&q=80&auto=format&fit=crop", alt: "Golden croissants on parchment" },
-  { src: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=1200&q=80&auto=format&fit=crop", alt: "Sourdough loaf with crackled crust" },
-  { src: "https://images.unsplash.com/photo-1568471173242-461f0a730452?w=1200&q=80&auto=format&fit=crop", alt: "Pain au chocolat fresh from the oven" },
-  { src: "https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=1200&q=80&auto=format&fit=crop", alt: "Laminated dough hand-folded" },
-  { src: "https://images.unsplash.com/photo-1486427944299-d1955d23e34d?w=1200&q=80&auto=format&fit=crop", alt: "Sliced sourdough crumb" },
-  { src: "https://images.unsplash.com/photo-1509365465985-25d11c17e812?w=1200&q=80&auto=format&fit=crop", alt: "Pastry case display" },
-  { src: "https://images.unsplash.com/photo-1517686469429-8bdb88b9f907?w=1200&q=80&auto=format&fit=crop", alt: "Butter being folded into dough" },
+  { src: image20260427, alt: "A flaky good bakery creation" },
+  { src: image20260516, alt: "A flaky good bakery creation" },
+  { src: image9093, alt: "A flaky good bakery creation" },
+  { src: image9609, alt: "A flaky good bakery creation" },
+  { src: image9696, alt: "A flaky good bakery creation" },
+  { src: image0056, alt: "A flaky good bakery creation" },
+  { src: image0241, alt: "A flaky good bakery creation" },
+  { src: image0079, alt: "A flaky good bakery creation" },
+  { src: image0090, alt: "A flaky good bakery creation" },
+  { src: image9697, alt: "A flaky good bakery creation" },
 ];
 
 const pillars = [
