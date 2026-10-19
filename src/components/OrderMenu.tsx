@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Calendar, Minus, Plus, Check, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import focacciaFallback from "@/assets/gallery/IMGC0090_Original.jpg";
@@ -65,6 +66,27 @@ async function errText(error: unknown) {
   return "Something went wrong. Please try again.";
 }
 
+const PHONE_HINT = "e.g. 4255550123";
+const phoneError = (phone: string) => {
+  if (!phone) return `Enter your 10-digit US phone number, numbers only (${PHONE_HINT}).`;
+  if (phone.length < 10) return `Phone number must be exactly 10 digits — you've entered ${phone.length} (${PHONE_HINT}).`;
+  if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(phone)) return `Enter a valid US phone number — the area code and the next 3 digits can't start with 0 or 1 (${PHONE_HINT}).`;
+  return "";
+};
+// Keeps digits only. Pasted numbers drop a leading US country code (+1); typed input is capped at 10 digits.
+const cleanPhone = (raw: string, prev: string) => {
+  let digits = raw.replace(/\D/g, "");
+  const pasted = digits.length - prev.length > 1;
+  if (pasted && digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
+  let notice = "";
+  if (!pasted && /\D/.test(raw)) notice = `Numbers only — don't include +, spaces, dashes or brackets (${PHONE_HINT}).`;
+  if (digits.length > 10) {
+    digits = digits.slice(0, 10);
+    notice = `US phone numbers are exactly 10 digits — you can't enter more than 10 (${PHONE_HINT}).`;
+  }
+  return { digits, notice };
+};
+
 export default function OrderMenu() {
   const reduceMotion = useReducedMotion();
   const [drop, setDrop] = useState<DropRow | null>(null);
@@ -73,6 +95,7 @@ export default function OrderMenu() {
   const [form, setForm] = useState({ customer_name: "", phone: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [phoneMsg, setPhoneMsg] = useState("");
   const [done, setDone] = useState(false);
 
   const load = async () => {
@@ -135,6 +158,12 @@ export default function OrderMenu() {
     setError("");
     const lines = Object.entries(qty).filter(([, n]) => n > 0).map(([item_id, n]) => ({ item_id, qty: n }));
     if (!lines.length) return setError("Pick at least one item.");
+    const phoneProblem = phoneError(form.phone);
+    if (phoneProblem) {
+      setPhoneMsg(phoneProblem);
+      document.getElementById("checkout-phone")?.focus();
+      return;
+    }
     setBusy(true);
     try {
       await loadHelcim();
@@ -259,7 +288,18 @@ export default function OrderMenu() {
                   {open && (
                     <div className="space-y-3">
                       <input required maxLength={100} placeholder="name" className={input} value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
-                      <input required type="tel" minLength={7} maxLength={30} pattern="[0-9+\(\)\-. ]+" placeholder="phone number" className={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                      <div>
+                        <input id="checkout-phone" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="phone number (10 digits)"
+                          aria-invalid={!!phoneMsg} aria-describedby={phoneMsg ? "checkout-phone-error" : undefined}
+                          className={cn(input, phoneMsg && "border-destructive focus:border-destructive")} value={form.phone}
+                          onChange={(e) => {
+                            const { digits: phone, notice } = cleanPhone(e.target.value, form.phone);
+                            setForm({ ...form, phone });
+                            setPhoneMsg(notice || (phoneMsg ? phoneError(phone) : ""));
+                          }}
+                          onBlur={() => form.phone && setPhoneMsg(phoneError(form.phone))} />
+                        {phoneMsg && <p id="checkout-phone-error" role="alert" className="mt-1.5 font-mono text-[12px] normal-case text-destructive">{phoneMsg}</p>}
+                      </div>
                     </div>
                   )}
 

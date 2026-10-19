@@ -2,10 +2,12 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
+const US_PHONE = /^[2-9]\d{2}[2-9]\d{6}$/;
+
 const Body = z.object({
   drop_id: z.string().uuid(),
   customer_name: z.string().trim().min(1).max(100),
-  phone: z.string().trim().min(7).max(30).regex(/^[0-9+()\-. ]+$/),
+  phone: z.string().trim().regex(US_PHONE),
   items: z.array(z.object({ item_id: z.string().uuid(), qty: z.number().int().min(1).max(50) })).min(1).max(20),
 });
 
@@ -16,7 +18,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const parsed = Body.safeParse(await req.json());
-    if (!parsed.success) return json({ error: "Please check your details and try again." }, 400);
+    if (!parsed.success) {
+      const phoneInvalid = parsed.error.issues.some((issue) => issue.path[0] === "phone");
+      return json({ error: phoneInvalid ? "Enter a valid 10-digit US phone number, numbers only (e.g. 4255550123)." : "Please check your details and try again." }, 400);
+    }
     const input = parsed.data;
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
