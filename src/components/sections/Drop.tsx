@@ -18,7 +18,7 @@ export default function Drop() {
     <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
       <div className="mx-auto max-w-[1100px] px-6 md:px-10">
         <h2 className="text-center font-display text-4xl font-black tracking-brand text-primary md:text-6xl">this week's drop.</h2>
-        <article className="mx-auto mt-10 max-w-[640px] overflow-hidden rounded-xl bg-secondary md:mt-14">
+        <article className="mx-auto mt-10 max-w-[640px] overflow-hidden rounded-[6px] bg-secondary md:mt-14">
           <img src={cover} alt="this week's bake" loading="lazy" className="block h-64 w-full object-cover md:h-80" />
           <div className="px-6 pb-7 pt-6 md:px-8 md:pb-8 md:pt-7">
             <h3 className="font-display text-2xl font-black leading-tight tracking-brand text-primary md:text-3xl">
