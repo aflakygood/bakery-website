@@ -202,7 +202,7 @@ export default function OrderMenu() {
     }
   };
 
-  const input = "w-full rounded-[6px] border border-primary/15 bg-background px-4 py-3 font-mono text-[13px] text-primary placeholder:text-primary/40 focus:outline-none focus:border-primary/50";
+  const input = "w-full rounded-[6px] border border-primary/15 bg-background px-4 py-3 font-mono text-[15px] text-primary placeholder:text-primary/40 focus:outline-none focus:border-primary/50";
 
   return (
     <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
@@ -309,7 +309,7 @@ export default function OrderMenu() {
                   {error && <p className="font-mono text-[12px] text-destructive">{error}</p>}
 
                   <button type="submit" disabled={!open || busy || total === 0}
-                    className="flex w-full items-center justify-between rounded-[6px] bg-primary px-5 py-4 font-mono text-[12px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
+                    className="flex w-full items-center justify-between rounded-[6px] bg-primary px-5 py-4 font-mono text-[14px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
                     <span>{busy ? "opening payment…" : open ? "checkout" : soldOut ? "sold out" : "preorders closed"}</span>
                     <span>{money(total)}</span>
                   </button>
