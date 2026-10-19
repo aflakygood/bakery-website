@@ -309,7 +309,7 @@ export default function OrderMenu() {
                   {error && <p className="font-mono text-[12px] text-destructive">{error}</p>}
 
                   <button type="submit" disabled={!open || busy || total === 0}
-                    className="flex w-full items-center justify-between rounded-[6px] bg-primary px-5 py-4 font-mono text-[14px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
+                    className="flex w-full items-center justify-between rounded-[6px] bg-primary px-5 py-4 font-mono text-[16px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
                     <span>{busy ? "opening payment…" : open ? "checkout" : soldOut ? "sold out" : "preorders closed"}</span>
                     <span>{money(total)}</span>
                   </button>
