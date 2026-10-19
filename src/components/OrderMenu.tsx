@@ -290,9 +290,9 @@ export default function OrderMenu() {
 
                   {open && (
                     <div className="space-y-3">
-                      <input required maxLength={100} placeholder="name" className={input} value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
+                      <input required maxLength={100} placeholder="name (required)" className={input} value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
                       <div>
-                        <input id="checkout-phone" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="phone number (10 digits)"
+                        <input id="checkout-phone" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="phone number (required)"
                           aria-invalid={!!phoneMsg} aria-describedby={phoneMsg ? "checkout-phone-error" : undefined}
                           className={cn(input, phoneMsg && "border-destructive focus:border-destructive")} value={form.phone}
                           onChange={(e) => {
