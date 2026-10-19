@@ -33,8 +33,8 @@ export default function Drop() {
               <span>near summit park,&nbsp;maple valley</span>
             </p>
             <Link to="/preorder"
-              className="mt-7 flex items-center justify-center gap-2 rounded-sm bg-primary px-5 py-4 font-mono text-[13px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">
-              click to order <ArrowRight className="h-3.5 w-3.5" />
+              className="mt-7 flex items-center justify-center gap-2 rounded-[6px] bg-primary px-5 py-4 font-mono text-[13px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">
+              click to preorder <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </article>
