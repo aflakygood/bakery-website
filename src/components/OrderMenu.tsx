@@ -254,7 +254,7 @@ export default function OrderMenu() {
                              initial={false}
                              animate={{ width: (qty[i.id] ?? 0) > 0 ? 136 : 44 }}
                              transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 30 }}
-                             className="absolute -bottom-[11px] right-[5px] z-10 flex h-11 max-w-[calc(100%-10px)] items-center overflow-hidden rounded-full bg-primary text-primary-foreground"
+                             className="absolute bottom-2 right-2 z-10 flex h-11 max-w-[calc(100%-16px)] items-center overflow-hidden rounded-full bg-primary text-primary-foreground"
                            >
                              {(qty[i.id] ?? 0) > 0 && (
                                <>
