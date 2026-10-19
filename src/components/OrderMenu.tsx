@@ -259,7 +259,7 @@ export default function OrderMenu() {
                   {open && (
                     <div className="space-y-3">
                       <input required maxLength={100} placeholder="name" className={input} value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
-                      <input required type="tel" minLength={7} maxLength={30} pattern="[0-9+()\-. ]+" placeholder="phone number" className={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                      <input required type="tel" minLength={7} maxLength={30} pattern="[0-9+\(\)\-. ]+" placeholder="phone number" className={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                     </div>
                   )}
 
