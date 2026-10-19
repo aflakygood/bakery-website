@@ -11,13 +11,16 @@ import painFallback from "@/assets/gallery/IMGC9697.CR3.jpg";
 import mushroomFallback from "@/assets/gallery/IMGC0079_Original.jpg";
 import sourdoughFallback from "@/assets/gallery/IMGC9615.CR3.jpg";
 
-// Product photos dropped into src/assets/products/ (e.g. croissant.png) override the gallery fallbacks.
+// Product photos dropped into src/assets/products/ (transparent cut-outs, e.g. croissant.webp) override the gallery fallbacks.
 const productPhotos = import.meta.glob<string>("@/assets/products/*.{png,jpg,jpeg,webp}", {
   eager: true,
   import: "default",
 });
-const productPhoto = (slug: string, fallback: string) =>
-  Object.entries(productPhotos).find(([path]) => path.split("/").pop()?.replace(/\.\w+$/, "") === slug)?.[1] ?? fallback;
+type ItemImage = { src: string; cutout: boolean };
+const productPhoto = (slug: string, fallback: string): ItemImage => {
+  const src = Object.entries(productPhotos).find(([path]) => path.split("/").pop()?.replace(/\.\w+$/, "") === slug)?.[1];
+  return src ? { src, cutout: true } : { src: fallback, cutout: false };
+};
 
 const focacciaAsset = productPhoto("olive-focaccia", focacciaFallback);
 const croissantAsset = productPhoto("croissant", croissantFallback);
@@ -36,14 +39,14 @@ declare global {
 }
 
 const IMG = (id: string) => `https://images.unsplash.com/${id}?w=400&q=80&auto=format&fit=crop`;
-const itemImage = (name: string) => {
+const itemImage = (name: string): ItemImage => {
   const n = name.toLowerCase();
   if (n.includes("sourdough")) return sourdoughAsset;
   if (n.includes("mushroom")) return mushroomAsset;
   if (n.includes("focaccia")) return focacciaAsset;
   if (n.includes("chocolat")) return painAsset;
   if (n.includes("croissant")) return croissantAsset;
-  return IMG("photo-1555507036-ab1f4038808a");
+  return { src: IMG("photo-1555507036-ab1f4038808a"), cutout: false };
 };
 
 const money = (c: number) => `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
@@ -243,9 +246,9 @@ export default function OrderMenu() {
                     {items.map((i) => (
                       <li key={i.id} className="group">
                          <div className="relative aspect-[4/5] bg-secondary/60">
-                           <Button type="button" variant="ghost" onClick={() => openItem(i)} className={`flex h-full w-full items-center ${i.name.toLowerCase().includes("focaccia") && !i.name.toLowerCase().includes("mushroom") ? "justify-start" : "justify-center"} overflow-hidden rounded-none p-0 hover:bg-transparent`} aria-label={`view ${i.name}`}>
-                          <img src={itemImage(i.name)} alt={i.name} loading="lazy"
-                             className={`${["sourdough", "focaccia", "croissant", "chocolat"].some((name) => i.name.toLowerCase().includes(name)) ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} ${i.name.toLowerCase().includes("focaccia") && !i.name.toLowerCase().includes("mushroom") ? "-ml-[5px] object-left" : ""} transition-transform duration-700 group-hover:scale-105`} />
+                           <Button type="button" variant="ghost" onClick={() => openItem(i)} className="flex h-full w-full items-center justify-center overflow-hidden rounded-none p-0 hover:bg-transparent" aria-label={`view ${i.name}`}>
+                          <img src={itemImage(i.name).src} alt={i.name} loading="lazy"
+                             className={`${itemImage(i.name).cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} transition-transform duration-700 group-hover:scale-105`} />
                            </Button>
                            <motion.div
                              initial={false}
@@ -323,7 +326,8 @@ export default function OrderMenu() {
             <X className="h-4 w-4" />
           </button>
           <div className="mx-auto w-full max-w-[760px]">
-            <img src={itemImage(sel.name)} alt={sel.name} className="aspect-[3/2] w-full object-cover" />
+            <img src={itemImage(sel.name).src} alt={sel.name}
+              className={cn("aspect-[3/2] w-full", itemImage(sel.name).cutout ? "bg-secondary/60 object-contain p-6" : "object-cover")} />
             <div className="px-6 py-8">
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
               <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
