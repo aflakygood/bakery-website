@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 
 type Order = { id: string; customer_name: string; email: string; phone: string; items: { name: string; qty: number }[]; total_cents: number; status: string; created_at: string };
-type Item = { id: string; name: string; price_cents: number; total_qty: number; max_per_order: number };
+type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number };
 type Drop = { id: string; title: string; pickup_info: string; is_open: boolean };
 
 export default function Admin() {
@@ -27,7 +27,7 @@ export default function Admin() {
     const { data: dropItems } = await supabase.from("drop_items").select("*").eq("drop_id", latestDrop.id).order("sort");
     setItems((dropItems ?? []) as Item[]);
     const { data: paidOrders } = await supabase.from("orders").select("*").eq("drop_id", latestDrop.id).in("status", ["paid", "picked_up"]).order("created_at");
-    setOrders((paidOrders ?? []) as Order[]);
+    setOrders((paidOrders ?? []) as unknown as Order[]);
   };
 
   useEffect(() => {
@@ -111,15 +111,18 @@ export default function Admin() {
               <table className="w-full font-mono text-[12px] text-primary">
                 <thead className="text-left text-primary/60"><tr><th className="py-2">item</th><th>price $</th><th>total spots</th><th>max / order</th><th>sold</th></tr></thead>
                 <tbody>
-                  {tally.map((item) => (
-                    <tr key={item.id} className="border-t border-primary/10">
+                  {tally.map((item) => (<Fragment key={item.id}>
+                    <tr className="border-t border-primary/10">
                       <td className="py-2 pr-2">{item.name}</td>
                       <td className="pr-2"><input type="number" min={0} step="0.5" className={`${field} w-20`} defaultValue={item.price_cents / 100} onBlur={(event) => void saveItem(item.id, { price_cents: Math.round(Number(event.target.value) * 100) })} /></td>
                       <td className="pr-2"><input type="number" min={0} className={`${field} w-20`} defaultValue={item.total_qty} onBlur={(event) => void saveItem(item.id, { total_qty: Number(event.target.value) })} /></td>
                       <td className="pr-2"><input type="number" min={1} className={`${field} w-20`} defaultValue={item.max_per_order} onBlur={(event) => void saveItem(item.id, { max_per_order: Number(event.target.value) })} /></td>
                       <td>{item.sold} / {item.total_qty}</td>
                     </tr>
-                  ))}
+                    <tr><td colSpan={5} className="pb-3">
+                      <textarea rows={3} placeholder="description shown to customers" className={field} defaultValue={item.description} onBlur={(event) => event.target.value !== item.description && void saveItem(item.id, { description: event.target.value })} />
+                    </td></tr>
+                  </Fragment>))}
                 </tbody>
               </table>
             </div>
@@ -134,7 +137,7 @@ export default function Admin() {
               <li key={order.id} className="flex flex-wrap items-start justify-between gap-3 py-3 font-mono text-[12px] text-primary">
                 <div>
                   <p className="font-bold">{order.customer_name} · ${(order.total_cents / 100).toFixed(2)}</p>
-                  <p className="text-primary/70">{order.email}{order.phone && ` · ${order.phone}`}</p>
+                  <p className="text-primary/70">{order.phone || order.email}</p>
                   <p className="text-primary/70">{order.items.map((line) => `${line.qty}× ${line.name}`).join(", ")}</p>
                 </div>
                 {order.status === "picked_up" ? <span className="text-primary/50">picked up</span> : <button onClick={() => void markPicked(order.id)} className="underline">mark picked up</button>}

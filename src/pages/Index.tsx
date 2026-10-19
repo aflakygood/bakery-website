@@ -2,7 +2,6 @@ import Nav from "@/components/sections/Nav";
 import Hero from "@/components/sections/Hero";
 import About from "@/components/sections/About";
 import PreOrderSteps from "@/components/sections/PreOrderSteps";
-import Menu from "@/components/sections/Menu";
 import Drop from "@/components/sections/Drop";
 import FAQ from "@/components/sections/FAQ";
 import Footer from "@/components/sections/Footer";
@@ -26,11 +25,10 @@ export default function Index() {
         <Hero />
         <About />
         <PreOrderSteps />
-        <Menu />
         <Drop />
         <FAQ />
       </main>
-      <Footer />
+      <Footer showContact />
     </div>
   );
 }

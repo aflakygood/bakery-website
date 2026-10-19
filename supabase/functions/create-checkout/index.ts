@@ -5,8 +5,7 @@ import { z } from "npm:zod@3";
 const Body = z.object({
   drop_id: z.string().uuid(),
   customer_name: z.string().trim().min(1).max(100),
-  email: z.string().trim().email().max(255),
-  phone: z.string().trim().max(30).default(""),
+  phone: z.string().trim().min(7).max(30).regex(/^[0-9+()\-. ]+$/),
   items: z.array(z.object({ item_id: z.string().uuid(), qty: z.number().int().min(1).max(50) })).min(1).max(20),
 });
 
@@ -38,7 +37,7 @@ Deno.serve(async (req) => {
     }
 
     const { data: order, error: oErr } = await db.from("orders").insert({
-      drop_id: drop.id, customer_name: input.customer_name, email: input.email, phone: input.phone,
+      drop_id: drop.id, customer_name: input.customer_name, email: "", phone: input.phone,
       items: lines, total_cents: total, status: "pending",
     }).select("id").single();
     if (oErr) throw oErr;

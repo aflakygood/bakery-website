@@ -108,6 +108,7 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground font-mono antialiased;
     letter-spacing: -0.04em;
+    text-transform: lowercase;
     overflow-x: hidden;
   }
 

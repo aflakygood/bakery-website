@@ -5,7 +5,7 @@ export default function Hero() {
   return (
     <section id="top" className="relative w-full overflow-hidden bg-background pt-[76px] md:pt-[84px]">
       <div className="bg-stripes">
-        <div className="relative mx-auto flex min-h-[55svh] max-w-[1400px] items-center justify-center px-6 py-12 md:py-16">
+        <div className="relative mx-auto flex min-h-[calc(100svh-76px)] md:min-h-[calc(100svh-84px)] max-w-[1400px] items-center justify-center px-6 py-12 md:py-16">
           <motion.img
             src={wordmark}
             alt="a flaky good. — boulangerie · patisserie"

@@ -1,0 +1,321 @@
+import { useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Calendar, Minus, Plus, Check, X, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+import focacciaFallback from "@/assets/gallery/IMGC0090_Original.jpg";
+import croissantFallback from "@/assets/gallery/20260427_201323.jpg";
+import painFallback from "@/assets/gallery/IMGC9697.CR3.jpg";
+import mushroomFallback from "@/assets/gallery/IMGC0079_Original.jpg";
+import sourdoughFallback from "@/assets/gallery/IMGC9615.CR3.jpg";
+
+// Product photos dropped into src/assets/products/ (e.g. croissant.png) override the gallery fallbacks.
+const productPhotos = import.meta.glob<string>("@/assets/products/*.{png,jpg,jpeg,webp}", {
+  eager: true,
+  import: "default",
+});
+const productPhoto = (slug: string, fallback: string) =>
+  Object.entries(productPhotos).find(([path]) => path.split("/").pop()?.replace(/\.\w+$/, "") === slug)?.[1] ?? fallback;
+
+const focacciaAsset = productPhoto("olive-focaccia", focacciaFallback);
+const croissantAsset = productPhoto("croissant", croissantFallback);
+const painAsset = productPhoto("pain-au-chocolat", painFallback);
+const mushroomAsset = productPhoto("mushroom-focaccia", mushroomFallback);
+const sourdoughAsset = productPhoto("sourdough", sourdoughFallback);
+
+type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number };
+type DropRow = { id: string; title: string; pickup_info: string; is_open: boolean };
+
+declare global {
+  interface Window {
+    appendHelcimPayIframe?: (token: string, allowExit?: boolean) => void;
+    removeHelcimPayIframe?: () => void;
+  }
+}
+
+const IMG = (id: string) => `https://images.unsplash.com/${id}?w=400&q=80&auto=format&fit=crop`;
+const itemImage = (name: string) => {
+  const n = name.toLowerCase();
+  if (n.includes("sourdough")) return sourdoughAsset;
+  if (n.includes("mushroom")) return mushroomAsset;
+  if (n.includes("focaccia")) return focacciaAsset;
+  if (n.includes("chocolat")) return painAsset;
+  if (n.includes("croissant")) return croissantAsset;
+  return IMG("photo-1555507036-ab1f4038808a");
+};
+
+const money = (c: number) => `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
+
+function loadHelcim() {
+  return new Promise<void>((resolve, reject) => {
+    if (window.appendHelcimPayIframe) return resolve();
+    const s = document.createElement("script");
+    s.src = "https://secure.helcim.app/helcim-pay/services/start.js";
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Could not load payment window"));
+    document.body.appendChild(s);
+  });
+}
+
+async function errText(error: unknown) {
+  if (error instanceof FunctionsHttpError) {
+    try { return (await error.context.json()).error ?? "Something went wrong."; } catch { /* ignore */ }
+  }
+  return "Something went wrong. Please try again.";
+}
+
+export default function OrderMenu() {
+  const reduceMotion = useReducedMotion();
+  const [drop, setDrop] = useState<DropRow | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [qty, setQty] = useState<Record<string, number>>({});
+  const [form, setForm] = useState({ customer_name: "", phone: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const load = async () => {
+    if (!isSupabaseConfigured) return;
+    const { data: d } = await supabase.from("drops").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!d) return;
+    setDrop(d);
+    const { data: its } = await supabase.from("drop_items").select("*").eq("drop_id", d.id).order("sort");
+    const withRemaining = await Promise.all(
+      (its ?? []).map(async (i) => {
+        const { data: r } = await supabase.rpc("item_remaining", { _item_id: i.id });
+        return { ...i, remaining: Math.max(0, r ?? 0) };
+      }),
+    );
+    setItems(withRemaining);
+  };
+  useEffect(() => { load(); }, []);
+
+  const soldOut = items.length > 0 && items.every((i) => i.remaining === 0);
+  const open = !!drop?.is_open && !soldOut;
+  const total = useMemo(() => items.reduce((s, i) => s + (qty[i.id] ?? 0) * i.price_cents, 0), [items, qty]);
+
+  const [limitMsg, setLimitMsg] = useState<Record<string, string>>({});
+  const change = (i: Item, d: number) => {
+    const cur = qty[i.id] ?? 0;
+    const next = cur + d;
+    if (d > 0 && next > Math.min(i.max_per_order, i.remaining)) {
+      setLimitMsg((m) => ({ ...m, [i.id]: next > i.remaining ? "no more available this week." : "that's the most you can order." }));
+      return;
+    }
+    setLimitMsg((m) => ({ ...m, [i.id]: "" }));
+    setQty((q) => ({ ...q, [i.id]: Math.max(0, next) }));
+  };
+
+  const [sel, setSel] = useState<Item | null>(null);
+  const [mQty, setMQty] = useState(1);
+  const [mMsg, setMMsg] = useState("");
+  const openItem = (i: Item) => { setSel(i); setMQty(Math.max(1, qty[i.id] ?? 1)); setMMsg(""); };
+  const mChange = (d: number) => {
+    if (!sel) return;
+    const next = mQty + d;
+    if (d > 0 && next > Math.min(sel.max_per_order, sel.remaining)) {
+      setMMsg(next > sel.remaining ? "no more available this week." : "that's the most you can order.");
+      return;
+    }
+    setMMsg("");
+    setMQty(Math.max(1, next));
+  };
+  useEffect(() => {
+    if (!sel) return;
+    document.body.style.overflow = "hidden";
+    const k = (e: KeyboardEvent) => e.key === "Escape" && setSel(null);
+    window.addEventListener("keydown", k);
+    return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", k); };
+  }, [sel]);
+
+  const checkout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!drop) return;
+    setError("");
+    const lines = Object.entries(qty).filter(([, n]) => n > 0).map(([item_id, n]) => ({ item_id, qty: n }));
+    if (!lines.length) return setError("Pick at least one item.");
+    setBusy(true);
+    try {
+      await loadHelcim();
+      const { data, error } = await supabase.functions.invoke("create-checkout", { body: { drop_id: drop.id, ...form, items: lines } });
+      if (error) { setError(await errText(error)); setBusy(false); load(); return; }
+      const { order_id, checkoutToken } = data;
+      let finished = false;
+      const onMsg = async (ev: MessageEvent) => {
+        if (ev.data?.eventName !== `helcim-pay-js-${checkoutToken}`) return;
+        if (ev.data.eventStatus === "SUCCESS" && !finished) {
+          finished = true;
+          window.removeEventListener("message", onMsg);
+          window.removeHelcimPayIframe?.();
+          const { error: cErr } = await supabase.functions.invoke("confirm-order", {
+            body: { order_id, action: "confirm", event_message: ev.data.eventMessage },
+          });
+          if (cErr) setError(await errText(cErr)); else { setDone(true); setQty({}); }
+          setBusy(false); load();
+        } else if ((ev.data.eventStatus === "ABORTED" || ev.data.eventStatus === "HIDE") && !finished) {
+          finished = true;
+          window.removeEventListener("message", onMsg);
+          window.removeHelcimPayIframe?.();
+          await supabase.functions.invoke("confirm-order", { body: { order_id, action: "cancel" } });
+          if (ev.data.eventStatus === "ABORTED") setError("Payment didn't go through. Please try again.");
+          setBusy(false); load();
+        }
+      };
+      window.addEventListener("message", onMsg);
+      window.appendHelcimPayIframe?.(checkoutToken, true);
+    } catch {
+      setError("Couldn't open the payment window. Please try again.");
+      setBusy(false);
+    }
+  };
+
+  const input = "w-full rounded-sm border border-primary/15 bg-background px-4 py-3 font-mono text-[13px] text-primary placeholder:text-primary/40 focus:outline-none focus:border-primary/50";
+
+  return (
+    <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
+      <div className="mx-auto max-w-[1100px] px-6 md:px-10">
+        <div className="flex flex-col items-center text-center">
+          <h2 className="font-display text-4xl font-black tracking-brand text-primary md:text-6xl">this week's drop.</h2>
+        </div>
+
+        <motion.article
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="mx-auto mt-10 max-w-[760px] md:mt-14"
+        >
+          <div>
+            <div className="flex justify-center pt-6">
+              <span className="inline-flex items-center gap-2 rounded-full bg-background/90 px-3 py-1.5 font-mono text-[10px] lowercase tracking-brand text-primary">
+                <span className={`h-1.5 w-1.5 rounded-full bg-primary ${open ? "animate-pulse" : "opacity-40"}`} />
+                {open ? "preorders open" : soldOut ? "sold out" : "preorders closed"}
+              </span>
+            </div>
+            <div className="pt-6">
+              {!isSupabaseConfigured ? (
+                <p className="font-mono text-[13px] leading-relaxed text-primary/75">preorders are coming soon.</p>
+              ) : drop && (
+                <p className="flex items-center gap-2 font-mono text-[12px] text-primary/80">
+                  <Calendar className="h-3.5 w-3.5" /> {drop.pickup_info}
+                </p>
+              )}
+
+              {!isSupabaseConfigured ? null : done ? (
+                <div className="mt-8 rounded-sm bg-background p-6 text-center">
+                  <Check className="mx-auto h-6 w-6 text-primary" />
+                  <h3 className="mt-3 font-display text-2xl font-black tracking-brand text-primary">you're in.</h3>
+                  <p className="mt-2 font-mono text-[13px] text-primary/75">payment received. pickup details will follow by DM.</p>
+                </div>
+              ) : (
+                <form onSubmit={checkout} className="mt-6 space-y-6">
+                  <ul className="grid grid-cols-2 gap-4 md:gap-6">
+                    {items.map((i) => (
+                      <li key={i.id} className="group">
+                         <div className="relative aspect-[4/5] bg-secondary/60">
+                           <Button type="button" variant="ghost" onClick={() => openItem(i)} className={`flex h-full w-full items-center ${i.name.toLowerCase().includes("focaccia") && !i.name.toLowerCase().includes("mushroom") ? "justify-start" : "justify-center"} overflow-hidden rounded-none p-0 hover:bg-transparent`} aria-label={`view ${i.name}`}>
+                          <img src={itemImage(i.name)} alt={i.name} loading="lazy"
+                             className={`${["sourdough", "focaccia", "croissant", "chocolat"].some((name) => i.name.toLowerCase().includes(name)) ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} ${i.name.toLowerCase().includes("focaccia") && !i.name.toLowerCase().includes("mushroom") ? "-ml-[5px] object-left" : ""} transition-transform duration-700 group-hover:scale-105`} />
+                           </Button>
+                           <motion.div
+                             initial={false}
+                             animate={{ width: (qty[i.id] ?? 0) > 0 ? 136 : 44 }}
+                             transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 30 }}
+                             className="absolute -bottom-[11px] right-[5px] z-10 flex h-11 max-w-[calc(100%-10px)] items-center overflow-hidden rounded-full bg-primary text-primary-foreground"
+                           >
+                             {(qty[i.id] ?? 0) > 0 && (
+                               <>
+                                 <Button type="button" variant="ghost" size="icon"
+                                   aria-label={`less ${i.name}`} onClick={() => change(i, -1)} disabled={!open}
+                                   className="h-11 w-10 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
+                                   {qty[i.id] === 1 ? <Trash2 /> : <Minus />}
+                                 </Button>
+                                 <span className="min-w-0 flex-1 text-center font-mono text-[14px]" aria-live="polite" aria-atomic="true">
+                                   <motion.span key={qty[i.id]} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="block">
+                                     {qty[i.id]}
+                                   </motion.span>
+                                 </span>
+                               </>
+                             )}
+                             <Button type="button" variant="ghost" size="icon"
+                               aria-label={`more ${i.name}`} onClick={() => change(i, 1)} disabled={!open || i.remaining === 0}
+                               className="ml-auto h-11 w-11 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
+                               <Plus className="!h-5 !w-5" />
+                             </Button>
+                           </motion.div>
+                        </div>
+                         <Button type="button" variant="ghost" onClick={() => openItem(i)} className="block h-auto w-full whitespace-normal rounded-none p-0 text-left hover:bg-transparent" aria-label={`details ${i.name}`}>
+                        <h3 className="mt-[18px] font-display text-base font-black leading-none tracking-brand text-primary md:text-lg md:leading-none">{i.name.toLowerCase()}.</h3>
+                        <p className="mt-1 font-mono text-[11px] text-primary/65 md:text-[12px]">
+                          {i.remaining === 0 ? "sold out" : money(i.price_cents)}
+                        </p>
+                         </Button>
+                        {limitMsg[i.id] && <p className="mt-2 font-mono text-[11px] text-destructive">{limitMsg[i.id]}</p>}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {open && (
+                    <div className="space-y-3">
+                      <input required maxLength={100} placeholder="name" className={input} value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
+                      <input required type="tel" minLength={7} maxLength={30} pattern="[0-9+()\-. ]+" placeholder="phone number" className={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                    </div>
+                  )}
+
+                  {error && <p className="font-mono text-[12px] text-destructive">{error}</p>}
+
+                  <button type="submit" disabled={!open || busy || total === 0}
+                    className="flex w-full items-center justify-between rounded-sm bg-primary px-5 py-4 font-mono text-[12px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
+                    <span>{busy ? "opening payment…" : open ? "checkout" : soldOut ? "sold out" : "preorders closed"}</span>
+                    <span>{money(total)}</span>
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </motion.article>
+      </div>
+      {sel && (
+        <div role="dialog" aria-modal="true" aria-label={sel.name} className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-background">
+          <button type="button" aria-label="close" onClick={() => setSel(null)}
+            className="fixed right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-primary/70 text-primary-foreground backdrop-blur-sm">
+            <X className="h-4 w-4" />
+          </button>
+          <div className="mx-auto w-full max-w-[760px]">
+            <img src={itemImage(sel.name)} alt={sel.name} className="aspect-[3/2] w-full object-cover" />
+            <div className="px-6 py-8">
+              <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
+              <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
+              {sel.description && <p className="mt-5 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.description}</p>}
+              {sel.remaining === 0 ? (
+                <p className="mt-10 text-center font-mono text-[13px] text-primary/70">sold out.</p>
+              ) : (
+                <>
+                  <div className="mt-10 flex items-center justify-center gap-5">
+                    <button type="button" aria-label="less" onClick={() => mChange(-1)} disabled={mQty <= 1}
+                      className="rounded-sm bg-secondary px-3 py-2 text-primary disabled:opacity-40"><Minus className="h-4 w-4" /></button>
+                    <span className="w-6 text-center font-mono text-[15px] text-primary">{mQty}</span>
+                    <button type="button" aria-label="more" onClick={() => mChange(1)}
+                      className="rounded-sm bg-secondary px-3 py-2 text-primary"><Plus className="h-4 w-4" /></button>
+                  </div>
+                  {mMsg && <p className="mt-3 text-center font-mono text-[11px] text-destructive">{mMsg}</p>}
+                </>
+              )}
+            </div>
+          </div>
+          {sel.remaining > 0 && (
+            <div className="sticky bottom-0 mt-auto w-full bg-background/95 px-4 pb-4 pt-2">
+              <button type="button" disabled={!open}
+                onClick={() => { setQty((q) => ({ ...q, [sel.id]: mQty })); setLimitMsg((m) => ({ ...m, [sel.id]: "" })); setSel(null); }}
+                className="mx-auto flex w-full max-w-[760px] items-center justify-between rounded-full bg-primary px-6 py-4 font-mono text-[13px] lowercase tracking-brand text-primary-foreground disabled:opacity-50">
+                <span>{open ? "add to cart" : "preorders closed"}</span>
+                <span>{money(sel.price_cents * mQty)}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

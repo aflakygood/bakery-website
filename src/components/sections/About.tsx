@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import image20260427 from "@/assets/gallery/20260427_201323.jpg";
 import image20260516 from "@/assets/gallery/20260516_145815.jpg";
@@ -41,6 +41,16 @@ const pillars = [
 
 export default function About() {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+  const onScroll = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const kids = Array.from(el.children).slice(0, gallery.length) as HTMLElement[];
+    const c = el.scrollLeft + el.clientWidth / 2;
+    let best = 0, d = Infinity;
+    kids.forEach((k, i) => { const m = Math.abs(k.offsetLeft + k.offsetWidth / 2 - c); if (m < d) { d = m; best = i; } });
+    setActive(best);
+  };
   const scrollBy = (dir: 1 | -1) => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -57,18 +67,15 @@ export default function About() {
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="mx-auto max-w-3xl text-center"
         >
-          <p className="mt-6 font-mono text-[15px] leading-relaxed text-primary md:text-[17px]">
-            a flaky good is a home microbakery in Maple Valley, built around small batch laminated pastries, long-ferment sourdough breads, and seasonal bakes — made with warmth, intention, and a lot of obsession.
-          </p>
-          <p className="mx-auto mt-5 max-w-xl font-mono text-[13px] leading-relaxed text-primary/70 md:text-[14px]">
-            everything is baked fresh and available through weekly pre-orders and select bake drops.
+          <p className="mt-6 font-mono text-[17px] leading-relaxed tracking-brand text-primary md:text-[20px]">
+            a flaky good is a home microbakery in maple valley - washington, built around small batch laminated pastries, long-ferment sourdough breads, and seasonal bakes — made with warmth, intention, and a lot of obsession.
           </p>
         </motion.div>
       </div>
 
       {/* Photo gallery — single row, horizontal scroll */}
       <div className="relative mt-14 md:mt-20">
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 items-center justify-between px-3 md:px-6">
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 hidden md:flex -translate-y-1/2 items-center justify-between px-3 md:px-6">
           <button
             type="button"
             aria-label="previous"
@@ -86,7 +93,7 @@ export default function About() {
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
-        <div ref={scrollerRef} className="no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-6 pb-2 md:gap-6 md:px-10" style={{ scrollSnapType: "x mandatory" }}>
+        <div ref={scrollerRef} onScroll={onScroll} className="touch-pan-x touch-pan-y no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-6 pb-2 md:gap-6 md:px-10" style={{ scrollSnapType: "x mandatory" }}>
           {gallery.map((g, i) => (
             <motion.figure
               key={i}
@@ -95,21 +102,26 @@ export default function About() {
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.7, delay: i * 0.05 }}
               className="shrink-0"
-              style={{ scrollSnapAlign: "start" }}
+              style={{ scrollSnapAlign: "center" }}
             >
               <img
                 src={g.src}
                 alt={g.alt}
                 loading="lazy"
-                className="h-[280px] w-[230px] rounded-[6px] object-cover md:h-[420px] md:w-[340px]"
+                className="h-[80svh] w-[90vw] rounded-[6px] object-cover md:h-[420px] md:w-[340px]"
               />
             </motion.figure>
           ))}
           <div className="shrink-0 w-2" aria-hidden />
         </div>
+        <div className="mt-4 flex items-center justify-center gap-1.5 md:hidden" aria-hidden>
+          {gallery.map((_, i) => (
+            <span key={i} className={`rounded-full bg-primary transition-all ${i === active ? "h-1.5 w-1.5 opacity-100" : Math.abs(i - active) > 3 ? "h-1 w-1 opacity-20" : "h-1.5 w-1.5 opacity-30"}`} />
+          ))}
+        </div>
       </div>
 
-      <div className="mx-auto mt-20 max-w-[1100px] px-6 md:mt-28 md:px-10">
+      <div className="mx-auto mt-16 max-w-[1100px] px-6 md:mt-[89.6px] md:px-10">
         <div className="grid gap-8 md:grid-cols-3 md:gap-x-10">
           {pillars.map((p, i) => (
             <motion.div
@@ -118,10 +130,10 @@ export default function About() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.7, delay: i * 0.08 }}
-              className="border-t border-primary/15 pt-5"
+              className="border-t border-primary/15 pt-5 first:border-t-0"
             >
               <h3 className="font-display text-lg font-black tracking-brand text-primary md:text-xl">{p.t}</h3>
-              <p className="mt-2 font-mono text-[12px] leading-relaxed text-primary/75 md:text-[13px]">{p.d}</p>
+              <p className="mt-2 font-mono text-[15px] leading-relaxed text-primary/75 md:text-[16px]">{p.d}</p>
             </motion.div>
           ))}
         </div>

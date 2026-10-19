@@ -3,11 +3,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 const faqs = [
   {
     q: "how do pre-orders work?",
-    a: "drops open a few days before pickup day. menu and order window are announced on Instagram. DM with your order details — once Zelle payment is processed, your spot is secured.",
+    a: "drops open a few days before pickup day. menu and order window are announced on instagram. place your order through the website and your spot is secured.",
   },
   {
     q: "where is pickup?",
-    a: "pickup is in Maple Valley, WA. the exact address is shared via DM once your order is confirmed.",
+    a: "pickup is in maple valley, wa. the exact address is shared via message once your order is confirmed.",
   },
   {
     q: "do you ship or deliver?",
@@ -15,11 +15,11 @@ const faqs = [
   },
   {
     q: "can i modify or cancel my order?",
-    a: "changes are possible until pre-orders close. after that, ingredients are sourced and prepped per order, so cancellations aren't possible.",
+    a: "you can change your order until pre-orders close. after that, we source and prep ingredients for each order, so we can't take cancellations — but reach out and we'll do our best to help.",
   },
   {
     q: "do your products contain allergens?",
-    a: "bakes include wheat, dairy, and eggs. some items contain nuts or seeds — full allergen info is shared on each drop.",
+    a: "bakes include wheat and dairy. some items contain nuts or seeds — full allergen info is shared on each drop.",
   },
   {
     q: "how do i hear about upcoming drops?",

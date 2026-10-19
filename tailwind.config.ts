@@ -66,7 +66,8 @@ export default {
       fontFamily: {
         display: ['"Nunito Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['"Nunito Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        mono: ['Figtree', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        serif: ['Lora', 'Georgia', 'serif'],
       },
       keyframes: {
         "accordion-down": {
