@@ -1,8 +1,8 @@
-import focacciaFallback from "@/assets/gallery/IMGC0090_Original.jpg";
-import croissantFallback from "@/assets/gallery/20260427_201323.jpg";
-import painFallback from "@/assets/gallery/IMGC9697.CR3.jpg";
-import mushroomFallback from "@/assets/gallery/IMGC0079_Original.jpg";
-import sourdoughFallback from "@/assets/gallery/IMGC9615.CR3.jpg";
+import focacciaFallback from "@/assets/gallery/10-corn-olive-focaccia.jpg";
+import croissantFallback from "@/assets/gallery/01-croissant.jpg";
+import painFallback from "@/assets/gallery/12-pain-au-chocolat.jpg";
+import mushroomFallback from "@/assets/gallery/07-mushroom-onion-focaccia.jpg";
+import sourdoughFallback from "@/assets/gallery/04-sourdough.jpg";
 
 export type ItemImage = { src: string; cutout: boolean };
 
