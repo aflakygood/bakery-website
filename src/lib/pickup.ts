@@ -12,16 +12,18 @@ const parseTime = (t: string) => {
 };
 
 const clock = ({ h12, m }: ReturnType<typeof parseTime>) => (m ? `${h12}:${String(m).padStart(2, "0")}` : `${h12}`);
+// Non-breaking space keeps "am"/"pm" on the same line as the time.
+const suffix = (t: ReturnType<typeof parseTime>) => `\u00a0${t.pm ? "pm" : "am"}`;
 
-// "09:00:00", "11:00:00" -> "9-11am"; "11:00", "13:30" -> "11am-1:30pm"
+// "09:00:00", "11:00:00" -> "9-11 am"; "11:00", "13:30" -> "11 am-1:30 pm"
 export function formatTimeRange(start: string | null, end: string | null) {
   if (!start) return "";
   const s = parseTime(start);
-  if (!end) return `${clock(s)}${s.pm ? "pm" : "am"}`;
+  if (!end) return `${clock(s)}${suffix(s)}`;
   const e = parseTime(end);
   return s.pm === e.pm
-    ? `${clock(s)}-${clock(e)}${e.pm ? "pm" : "am"}`
-    : `${clock(s)}${s.pm ? "pm" : "am"}-${clock(e)}${e.pm ? "pm" : "am"}`;
+    ? `${clock(s)}-${clock(e)}${suffix(e)}`
+    : `${clock(s)}${suffix(s)}-${clock(e)}${suffix(e)}`;
 }
 
 // "2026-10-24" -> "Saturday Oct 24" (parsed as a local date so it never shifts a day)
