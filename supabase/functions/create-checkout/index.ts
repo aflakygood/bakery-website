@@ -1,6 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
+import { discountCents, findDiscount } from "../_shared/discount.ts";
 
 const US_PHONE = /^[2-9]\d{2}[2-9]\d{6}$/;
 
@@ -42,9 +43,15 @@ Deno.serve(async (req) => {
       total += qty * it.price_cents;
     }
 
+    const subtotal = total;
+    const discount = await findDiscount(db, input.customer_name);
+    if (discount) total = subtotal - discountCents(subtotal, discount.percent);
+    const customerName = discount?.cleanName || input.customer_name;
+
     const { data: order, error: oErr } = await db.from("orders").insert({
-      drop_id: drop.id, customer_name: input.customer_name, email: "", phone: input.phone, sms_opt_in: input.sms_opt_in,
-      items: lines, total_cents: total, status: "pending",
+      drop_id: drop.id, customer_name: customerName, email: "", phone: input.phone, sms_opt_in: input.sms_opt_in,
+      items: lines, total_cents: total, subtotal_cents: subtotal, status: "pending",
+      discount_code: discount?.code ?? null, discount_percent: discount?.percent ?? null,
     }).select("id").single();
     if (oErr) throw oErr;
 

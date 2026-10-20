@@ -36,6 +36,8 @@ type Confirmation = {
   customer_name: string;
   items: { name: string; qty: number; price_cents: number }[];
   total_cents: number;
+  subtotal_cents?: number;
+  discount_percent?: number | null;
   sms_opt_in: boolean;
   pickup: PickupFields | null;
   pickup_address: string | null;
@@ -133,6 +135,20 @@ export default function OrderMenu() {
   const open = !!drop?.is_open && !soldOut;
   const total = useMemo(() => items.reduce((s, i) => s + (qty[i.id] ?? 0) * i.price_cents, 0), [items, qty]);
 
+  // Secret codes in brackets in the name, e.g. "Ayush (friends)". The server re-checks at checkout.
+  const [discountPct, setDiscountPct] = useState<number | null>(null);
+  useEffect(() => {
+    const name = form.customer_name;
+    if (!isSupabaseConfigured || !/\([^()]+\)/.test(name)) { setDiscountPct(null); return; }
+    let stale = false;
+    const t = setTimeout(async () => {
+      const { data } = await supabase.functions.invoke("check-discount", { body: { name } });
+      if (!stale) setDiscountPct(typeof data?.percent === "number" ? data.percent : null);
+    }, 400);
+    return () => { stale = true; clearTimeout(t); };
+  }, [form.customer_name]);
+  const payTotal = discountPct ? total - Math.round((total * discountPct) / 100) : total;
+
   const [limitMsg, setLimitMsg] = useState<Record<string, string>>({});
   const change = (i: Item, d: number) => {
     const cur = qty[i.id] ?? 0;
@@ -199,7 +215,9 @@ export default function OrderMenu() {
           else {
             const cartLines = items.filter((i) => (qty[i.id] ?? 0) > 0).map((i) => ({ name: i.name, qty: qty[i.id], price_cents: i.price_cents }));
             setConfirmation(cData?.confirmation ?? {
-              customer_name: form.customer_name, items: cartLines, total_cents: total, sms_opt_in: form.sms_opt_in, pickup: drop, pickup_address: null,
+              customer_name: discountPct ? form.customer_name.replace(/\([^()]*\)/g, " ").replace(/\s+/g, " ").trim() : form.customer_name,
+              items: cartLines, total_cents: payTotal, subtotal_cents: total, discount_percent: discountPct,
+              sms_opt_in: form.sms_opt_in, pickup: drop, pickup_address: null,
             });
             setOrderRef({ order_id, checkout_token: checkoutToken });
             setQty({});
@@ -344,11 +362,22 @@ export default function OrderMenu() {
 
                   {error && <p className="font-mono text-[12px] text-destructive">{error}</p>}
 
-                  <button type="submit" disabled={!open || busy || total === 0}
-                    className="flex w-full items-center justify-between rounded-[6px] bg-primary px-5 py-4 font-mono text-[16px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
-                    <span>{busy ? "opening payment…" : open ? "checkout" : soldOut ? "sold out" : "preorders closed"}</span>
-                    <span>{money(total)}</span>
-                  </button>
+                  <div>
+                    {discountPct && total > 0 ? (
+                      <div role="status" className="relative mb-3 rounded-[6px] bg-secondary px-4 py-2.5 text-center font-mono text-[14px] text-primary">
+                        your <span className="font-bold">{discountPct}% discount</span> is applied.
+                        <span aria-hidden="true" className="absolute left-1/2 top-full -translate-x-1/2 border-x-[7px] border-t-[7px] border-x-transparent border-t-secondary" />
+                      </div>
+                    ) : null}
+                    <button type="submit" disabled={!open || busy || total === 0}
+                      className="flex w-full items-center justify-between rounded-[6px] bg-primary px-5 py-4 font-mono text-[16px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
+                      <span>{busy ? "opening payment…" : open ? "checkout" : soldOut ? "sold out" : "preorders closed"}</span>
+                      <span className="flex items-baseline gap-2">
+                        {discountPct && total > 0 ? <s className="opacity-60" aria-label={`was ${money(total)}`}>{money(total)}</s> : null}
+                        <span>{money(payTotal)}</span>
+                      </span>
+                    </button>
+                  </div>
                 </form>
               )}
             </div>
@@ -490,6 +519,12 @@ function OrderConfirmation({ c, orderRef, reduceMotion }: { c: Confirmation; ord
               );
             })}
           </ul>
+          {c.discount_percent && c.subtotal_cents ? (
+            <div className="mt-2 space-y-1 border-t border-primary/15 pt-4 font-mono text-[15px] text-primary/75">
+              <div className="flex justify-between"><span>subtotal</span><span>{money(c.subtotal_cents)}</span></div>
+              <div className="flex justify-between"><span>{c.discount_percent}% discount</span><span>−{money(c.subtotal_cents - c.total_cents)}</span></div>
+            </div>
+          ) : null}
           <div className="mt-2 flex items-center justify-between border-t border-primary/15 pt-4 font-display text-xl font-black tracking-brand text-primary">
             <span>total</span>
             <span>{money(c.total_cents)}</span>

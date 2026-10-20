@@ -3,7 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
 
-type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { name: string; qty: number }[]; total_cents: number; status: string; created_at: string };
+type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; created_at: string };
 type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number };
 type Drop = PickupFields & { id: string; title: string; is_open: boolean };
 
@@ -155,7 +155,7 @@ export default function Admin() {
             {orders.map((order) => (
               <li key={order.id} className="flex flex-wrap items-start justify-between gap-3 py-3 font-mono text-[12px] text-primary">
                 <div>
-                  <p className="font-bold">{order.customer_name} · ${(order.total_cents / 100).toFixed(2)}</p>
+                  <p className="font-bold">{order.customer_name} · ${(order.total_cents / 100).toFixed(2)}{order.discount_percent ? ` (${order.discount_percent}% off · ${order.discount_code})` : ""}</p>
                   <p className="text-primary/70">{order.phone || order.email}{order.sms_opt_in ? " · opted in to phone updates" : ""}</p>
                   <p className="text-primary/70">{order.items.map((line) => `${line.qty}× ${line.name}`).join(", ")}</p>
                 </div>

@@ -31,6 +31,8 @@ async function confirmationFor(db: any, order: any) {
       customer_name: order.customer_name,
       items: (order.items ?? []).map((i: { name: string; qty: number; price_cents: number }) => ({ name: i.name, qty: i.qty, price_cents: i.price_cents })),
       total_cents: order.total_cents,
+      subtotal_cents: order.subtotal_cents ?? order.total_cents,
+      discount_percent: order.discount_percent ?? null,
       sms_opt_in: !!order.sms_opt_in,
       pickup: drop ?? null,
       pickup_address: address?.value ?? null,
