@@ -230,7 +230,7 @@ export default function OrderMenu() {
               {!isSupabaseConfigured ? (
                 <p className="mt-4 font-mono text-[15px] leading-relaxed text-primary/80">preorders are coming soon.</p>
               ) : drop && (
-                <ul className="mt-4 space-y-0.5 font-mono text-[15px] text-primary">
+                <ul className="mt-4 space-y-[15px] font-mono text-[15px] text-primary">
                   <li className="flex items-start gap-3">
                     <Calendar className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                     <span>{pickupWhen(drop)}</span>
