@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 
-type Order = { id: string; customer_name: string; email: string; phone: string; items: { name: string; qty: number }[]; total_cents: number; status: string; created_at: string };
+type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { name: string; qty: number }[]; total_cents: number; status: string; created_at: string };
 type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number };
 type Drop = { id: string; title: string; pickup_info: string; is_open: boolean };
 
@@ -137,7 +137,7 @@ export default function Admin() {
               <li key={order.id} className="flex flex-wrap items-start justify-between gap-3 py-3 font-mono text-[12px] text-primary">
                 <div>
                   <p className="font-bold">{order.customer_name} · ${(order.total_cents / 100).toFixed(2)}</p>
-                  <p className="text-primary/70">{order.phone || order.email}</p>
+                  <p className="text-primary/70">{order.phone || order.email}{order.sms_opt_in ? " · opted in to phone updates" : ""}</p>
                   <p className="text-primary/70">{order.items.map((line) => `${line.qty}× ${line.name}`).join(", ")}</p>
                 </div>
                 {order.status === "picked_up" ? <span className="text-primary/50">picked up</span> : <button onClick={() => void markPicked(order.id)} className="underline">mark picked up</button>}

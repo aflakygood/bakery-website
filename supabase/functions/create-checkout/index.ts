@@ -8,6 +8,7 @@ const Body = z.object({
   drop_id: z.string().uuid(),
   customer_name: z.string().trim().min(1).max(100),
   phone: z.string().trim().regex(US_PHONE),
+  sms_opt_in: z.boolean().optional().default(false),
   items: z.array(z.object({ item_id: z.string().uuid(), qty: z.number().int().min(1).max(50) })).min(1).max(20),
 });
 
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     }
 
     const { data: order, error: oErr } = await db.from("orders").insert({
-      drop_id: drop.id, customer_name: input.customer_name, email: "", phone: input.phone,
+      drop_id: drop.id, customer_name: input.customer_name, email: "", phone: input.phone, sms_opt_in: input.sms_opt_in,
       items: lines, total_cents: total, status: "pending",
     }).select("id").single();
     if (oErr) throw oErr;

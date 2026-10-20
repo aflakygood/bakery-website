@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Calendar, Minus, Plus, Check, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
@@ -95,7 +96,7 @@ export default function OrderMenu() {
   const [drop, setDrop] = useState<DropRow | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [form, setForm] = useState({ customer_name: "", phone: "" });
+  const [form, setForm] = useState({ customer_name: "", phone: "", sms_opt_in: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [phoneMsg, setPhoneMsg] = useState("");
@@ -303,6 +304,12 @@ export default function OrderMenu() {
                           onBlur={() => form.phone && setPhoneMsg(phoneError(form.phone))} />
                         {phoneMsg && <p id="checkout-phone-error" role="alert" className="mt-1.5 font-mono text-[12px] normal-case text-destructive">{phoneMsg}</p>}
                       </div>
+                      <label htmlFor="checkout-sms-opt-in" className="flex cursor-pointer items-center gap-3 pt-1 font-mono text-[15px] text-primary">
+                        <Checkbox id="checkout-sms-opt-in" checked={form.sms_opt_in}
+                          onCheckedChange={(v) => setForm({ ...form, sms_opt_in: v === true })}
+                          className="h-5 w-5 rounded-[4px]" />
+                        receive order updates on phone
+                      </label>
                     </div>
                   )}
 
