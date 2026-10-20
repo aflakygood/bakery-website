@@ -14,6 +14,10 @@ const faqs = [
     a: "not at this time. everything is baked fresh for same-day pickup to keep quality and texture at their best.",
   },
   {
+    q: "do you cater?",
+    a: "yes, and we love it. we have an extended catering menu — dm @aflakygood on instagram for details.",
+  },
+  {
     q: "can i modify or cancel my order?",
     a: "you can change your order until preorders close. after that, we source and prep ingredients for each order, so we can't take cancellations — but reach out and we'll do our best to help.",
   },
