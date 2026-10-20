@@ -65,9 +65,9 @@ export default function About() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="mx-auto max-w-3xl text-center"
+          className="mx-auto max-w-3xl py-[100px] text-center"
         >
-          <p className="mt-6 font-mono text-[21px] leading-relaxed tracking-brand text-primary md:text-[24px]">
+          <p className="mt-6 font-mono text-[20px] leading-relaxed tracking-brand text-primary md:text-[23px]">
             a flaky good is a home microbakery in maple valley - washington, built around small batch laminated pastries, long-ferment sourdough breads, and seasonal bakes — made with warmth, intention, and a lot of obsession.
           </p>
         </motion.div>
