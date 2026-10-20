@@ -14,7 +14,7 @@ export default function Footer({ showContact = false }: { showContact?: boolean 
                 drop a dm.
               </h2>
               <p className="mt-6 max-w-md font-mono text-[15px] leading-relaxed tracking-brand text-primary/70">
-                pre-orders, weekly drops, and pickup details — all live on instagram.
+                preorders, weekly drops, and pickup details — all live on instagram.
               </p>
               <a
                 href="https://www.instagram.com/aflakygood/"

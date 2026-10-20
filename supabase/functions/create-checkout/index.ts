@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: drop } = await db.from("drops").select("*").eq("id", input.drop_id).maybeSingle();
-    if (!drop || !drop.is_open) return json({ error: "Pre-orders are closed for this drop." }, 400);
+    if (!drop || !drop.is_open) return json({ error: "Preorders are closed for this drop." }, 400);
 
     const { data: dbItems } = await db.from("drop_items").select("*").eq("drop_id", drop.id);
     const lines: { item_id: string; name: string; qty: number; price_cents: number }[] = [];

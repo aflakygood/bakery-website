@@ -2,7 +2,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 
 const faqs = [
   {
-    q: "how do pre-orders work?",
+    q: "how do preorders work?",
     a: "drops open a few days before pickup day. menu and order window are announced on instagram. place your order through the website and your spot is secured.",
   },
   {
@@ -15,7 +15,7 @@ const faqs = [
   },
   {
     q: "can i modify or cancel my order?",
-    a: "you can change your order until pre-orders close. after that, we source and prep ingredients for each order, so we can't take cancellations — but reach out and we'll do our best to help.",
+    a: "you can change your order until preorders close. after that, we source and prep ingredients for each order, so we can't take cancellations — but reach out and we'll do our best to help.",
   },
   {
     q: "do your products contain allergens?",

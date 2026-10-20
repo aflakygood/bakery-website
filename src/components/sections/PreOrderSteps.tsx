@@ -32,7 +32,7 @@ export default function PreOrderSteps() {
   return (
     <section id="preorder" className="relative bg-secondary pb-20 pt-10 md:pb-32 md:pt-14">
       <div className="mx-auto max-w-[1100px] px-6 md:px-10">
-        <div className="text-center">
+        <div className="pt-[30px] text-center">
           <h2 className="font-display text-4xl font-black tracking-brand text-primary md:text-6xl">
             how to preorder.
           </h2>
