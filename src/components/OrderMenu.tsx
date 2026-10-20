@@ -335,7 +335,7 @@ export default function OrderMenu() {
                             onCheckedChange={(v) => setForm({ ...form, sms_opt_in: v === true })}
                             aria-describedby="checkout-sms-terms"
                             className="h-5 w-5 rounded-[4px]" />
-                          receive order updates on phone
+                          receive order and pickup updates
                         </label>
                         <p id="checkout-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
                       </div>
@@ -463,7 +463,7 @@ function OrderConfirmation({ c, orderRef, reduceMotion }: { c: Confirmation; ord
                 onCheckedChange={(v) => updateSms(v === true)}
                 aria-describedby="confirm-sms-terms"
                 className="h-5 w-5 rounded-[4px]" />
-              receive order updates on phone
+              receive order and pickup updates
             </label>
             <p id="confirm-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
             {smsError && <p role="alert" className="mt-1.5 pl-8 font-mono text-[12px] text-destructive">{smsError}</p>}
