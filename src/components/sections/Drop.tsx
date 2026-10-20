@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Calendar, MapPin, ArrowRight } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
+import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import cover from "@/assets/gallery/20260427_201323.jpg";
 
-type DropRow = { id: string; title: string; pickup_info: string; is_open: boolean };
+type DropRow = PickupFields & { id: string; title: string; is_open: boolean };
 
 export default function Drop() {
   const [drop, setDrop] = useState<DropRow | null>(null);
@@ -26,11 +27,11 @@ export default function Drop() {
             </h3>
             <p className="mt-5 flex items-start gap-2.5 font-mono text-[13px] text-primary/80">
               <Calendar className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>pickup saturday · 9 — 11 am</span>
+              <span>{(drop && pickupWhen(drop)) || "pickup saturday · 9 — 11 am"}</span>
             </p>
             <p className="mt-3 flex items-start gap-2.5 font-mono text-[13px] text-primary/80">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>near summit park,&nbsp;maple valley</span>
+              <span>{drop?.pickup_location || "near summit park, maple valley"}</span>
             </p>
             <Link to="/preorder"
               className="mt-7 flex items-center justify-center gap-2 rounded-[6px] bg-primary px-5 py-4 font-mono text-[15px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">

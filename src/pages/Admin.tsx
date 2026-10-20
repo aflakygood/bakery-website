@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
+import { pickupWhen, type PickupFields } from "@/lib/pickup";
 
 type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { name: string; qty: number }[]; total_cents: number; status: string; created_at: string };
 type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number };
-type Drop = { id: string; title: string; pickup_info: string; is_open: boolean };
+type Drop = PickupFields & { id: string; title: string; is_open: boolean };
 
 export default function Admin() {
   const [session, setSession] = useState<Session | null>(null);
@@ -105,8 +106,26 @@ export default function Admin() {
                 {drop.is_open ? "close preorders" : "open preorders"}
               </button>
             </div>
-            <label className="mt-4 block font-mono text-[11px] text-primary/60">pickup details shown to customers</label>
-            <input className={field} defaultValue={drop.pickup_info} onBlur={(event) => event.target.value !== drop.pickup_info && void saveDrop({ pickup_info: event.target.value })} />
+            <p className="mt-4 font-mono text-[11px] text-primary/60">pickup details shown to customers</p>
+            <div className="mt-1 grid gap-3 sm:grid-cols-3">
+              <label className="font-mono text-[11px] text-primary/60">date
+                <input type="date" className={field} defaultValue={drop.pickup_date ?? ""} key={`d-${drop.pickup_date}`}
+                  onBlur={(event) => event.target.value !== (drop.pickup_date ?? "") && void saveDrop({ pickup_date: event.target.value || null })} />
+              </label>
+              <label className="font-mono text-[11px] text-primary/60">start
+                <input type="time" className={field} defaultValue={drop.pickup_start?.slice(0, 5) ?? ""} key={`s-${drop.pickup_start}`}
+                  onBlur={(event) => event.target.value !== (drop.pickup_start?.slice(0, 5) ?? "") && void saveDrop({ pickup_start: event.target.value || null })} />
+              </label>
+              <label className="font-mono text-[11px] text-primary/60">end
+                <input type="time" className={field} defaultValue={drop.pickup_end?.slice(0, 5) ?? ""} key={`e-${drop.pickup_end}`}
+                  onBlur={(event) => event.target.value !== (drop.pickup_end?.slice(0, 5) ?? "") && void saveDrop({ pickup_end: event.target.value || null })} />
+              </label>
+            </div>
+            <label className="mt-3 block font-mono text-[11px] text-primary/60">location
+              <input className={field} defaultValue={drop.pickup_location} key={`l-${drop.pickup_location}`}
+                onBlur={(event) => event.target.value !== drop.pickup_location && void saveDrop({ pickup_location: event.target.value })} />
+            </label>
+            <p className="mt-2 font-mono text-[12px] text-primary/70">preview: {pickupWhen(drop)}{drop.pickup_location ? ` · ${drop.pickup_location}` : ""}</p>
             <div className="mt-5 overflow-x-auto">
               <table className="w-full font-mono text-[12px] text-primary">
                 <thead className="text-left text-primary/60"><tr><th className="py-2">item</th><th>price $</th><th>total spots</th><th>max / order</th><th>sold</th></tr></thead>

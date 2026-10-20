@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Calendar, Minus, Plus, Check, X, Trash2 } from "lucide-react";
+import { Calendar, MapPin, Minus, Plus, Check, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import focacciaFallback from "@/assets/gallery/IMGC0090_Original.jpg";
@@ -30,7 +31,7 @@ const mushroomAsset = productPhoto("mushroom-focaccia", mushroomFallback);
 const sourdoughAsset = productPhoto("sourdough", sourdoughFallback);
 
 type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number };
-type DropRow = { id: string; title: string; pickup_info: string; is_open: boolean };
+type DropRow = PickupFields & { id: string; title: string; is_open: boolean };
 
 declare global {
   interface Window {
@@ -220,21 +221,29 @@ export default function OrderMenu() {
           className="mx-auto mt-10 max-w-[760px] md:mt-14"
         >
           <div>
-            <div className="flex justify-center pt-6">
-              <span className="inline-flex items-center gap-2 rounded-full bg-background/90 px-3 py-1.5 font-mono text-[10px] lowercase tracking-brand text-primary">
+            <div className="mt-6 rounded-[6px] bg-secondary p-5 md:p-6">
+              <span className="inline-flex items-center gap-2 rounded-full bg-background/90 px-3 py-1.5 font-mono text-[11px] lowercase tracking-brand text-primary">
                 <span className={`h-1.5 w-1.5 rounded-full bg-primary ${open ? "animate-pulse" : "opacity-40"}`} />
                 {open ? "preorders open" : soldOut ? "sold out" : "preorders closed"}
               </span>
-            </div>
-            <div className="pt-6">
               {!isSupabaseConfigured ? (
-                <p className="font-mono text-[13px] leading-relaxed text-primary/75">preorders are coming soon.</p>
+                <p className="mt-4 font-mono text-[15px] leading-relaxed text-primary/80">preorders are coming soon.</p>
               ) : drop && (
-                <p className="flex items-center gap-2 font-mono text-[12px] text-primary/80">
-                  <Calendar className="h-3.5 w-3.5" /> {drop.pickup_info}
-                </p>
+                <ul className="mt-4 space-y-3 font-mono text-[15px] text-primary">
+                  <li className="flex items-start gap-3">
+                    <Calendar className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>{pickupWhen(drop)}</span>
+                  </li>
+                  {drop.pickup_location && (
+                    <li className="flex items-start gap-3">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span>{drop.pickup_location}</span>
+                    </li>
+                  )}
+                </ul>
               )}
-
+            </div>
+            <div className="pt-2">
               {!isSupabaseConfigured ? null : done ? (
                 <div className="mt-8 rounded-[6px] bg-background p-6 text-center">
                   <Check className="mx-auto h-6 w-6 text-primary" />
