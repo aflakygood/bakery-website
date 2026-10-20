@@ -181,10 +181,10 @@ export default function About() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.7, delay: i * 0.08 }}
-              className="border-t border-primary/15 pt-5 first:border-t-0"
+              className="border-t border-primary/15 pt-5 first:border-t-0 md:first:border-t"
             >
-              <h3 className="font-display text-lg font-black tracking-brand text-primary md:text-xl">{p.t}</h3>
-              <p className="mt-2 font-mono text-[15px] leading-relaxed text-primary/75 md:text-[16px]">{p.d}</p>
+              <h3 className="font-display text-[20px] font-black tracking-brand text-primary md:text-[22px]">{p.t}</h3>
+              <p className="mt-2 font-mono text-[17px] leading-relaxed text-primary/75 md:text-[18px]">{p.d}</p>
             </motion.div>
           ))}
         </div>
