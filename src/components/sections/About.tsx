@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import image20260427 from "@/assets/gallery/20260427_201323.jpg";
 import image20260516 from "@/assets/gallery/20260516_145815.jpg";
@@ -39,24 +39,64 @@ const pillars = [
   { t: "small batch baking.", d: "Baked to order and in small batches to focus on freshness, consistency, and quality." },
 ];
 
+const AUTO_SCROLL_MS = 2000;
+const RESUME_AFTER_INTERACTION_MS = 5000;
+// Rendered twice so auto-scroll can loop seamlessly: once a full set has
+// scrolled past, we jump back by exactly one set width (visually identical).
+const loopGallery = [...gallery, ...gallery];
+
+const figures = (el: HTMLElement) => Array.from(el.querySelectorAll<HTMLElement>(":scope > figure"));
+const setWidth = (kids: HTMLElement[]) => kids[gallery.length].offsetLeft - kids[0].offsetLeft;
+const centerOf = (el: HTMLElement, k: HTMLElement) => k.offsetLeft + k.offsetWidth / 2 - el.clientWidth / 2;
+const nearestIndex = (el: HTMLElement, kids: HTMLElement[]) => {
+  let best = 0, d = Infinity;
+  kids.forEach((k, i) => { const m = Math.abs(centerOf(el, k) - el.scrollLeft); if (m < d) { d = m; best = i; } });
+  return best;
+};
+// Jump (invisibly) between the two identical sets so there's always room to scroll in `dir`.
+const wrap = (el: HTMLElement, kids: HTMLElement[], dir: 1 | -1, amount: number) => {
+  const span = setWidth(kids);
+  if (dir === 1 && el.scrollLeft >= span) el.scrollTo({ left: el.scrollLeft - span, behavior: "instant" });
+  else if (dir === -1 && el.scrollLeft < amount) el.scrollTo({ left: el.scrollLeft + span, behavior: "instant" });
+};
+
 export default function About() {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const reduceMotion = useReducedMotion();
+  const hovering = useRef(false);
+  const inView = useRef(false);
+  const resumeAt = useRef(0);
+  const pauseForInteraction = () => { resumeAt.current = Date.now() + RESUME_AFTER_INTERACTION_MS; };
+
   const onScroll = () => {
     const el = scrollerRef.current;
     if (!el) return;
-    const kids = Array.from(el.children).slice(0, gallery.length) as HTMLElement[];
-    const c = el.scrollLeft + el.clientWidth / 2;
-    let best = 0, d = Infinity;
-    kids.forEach((k, i) => { const m = Math.abs(k.offsetLeft + k.offsetWidth / 2 - c); if (m < d) { d = m; best = i; } });
-    setActive(best);
+    setActive(nearestIndex(el, figures(el)) % gallery.length);
   };
   const scrollBy = (dir: 1 | -1) => {
     const el = scrollerRef.current;
     if (!el) return;
+    pauseForInteraction();
     const amount = Math.max(el.clientWidth * 0.8, 260);
+    wrap(el, figures(el), dir, amount);
     el.scrollBy({ left: dir * amount, behavior: "smooth" });
   };
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || reduceMotion) return;
+    const io = new IntersectionObserver(([e]) => { inView.current = e.isIntersecting; });
+    io.observe(el);
+    const id = window.setInterval(() => {
+      if (hovering.current || !inView.current || document.hidden || Date.now() < resumeAt.current) return;
+      const kids = figures(el);
+      wrap(el, kids, 1, 0);
+      const next = kids[nearestIndex(el, kids) + 1];
+      if (next) el.scrollTo({ left: centerOf(el, next), behavior: "smooth" });
+    }, AUTO_SCROLL_MS);
+    return () => { window.clearInterval(id); io.disconnect(); };
+  }, [reduceMotion]);
   return (
     <section id="about" className="relative pb-20 pt-[50px] md:pb-32 md:pt-[98px]">
       <div className="mx-auto max-w-[1200px] px-6 md:px-10">
@@ -93,16 +133,27 @@ export default function About() {
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
-        <div ref={scrollerRef} onScroll={onScroll} className="touch-pan-x touch-pan-y no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-6 pb-2 md:gap-6 md:px-10" style={{ scrollSnapType: "x mandatory" }}>
-          {gallery.map((g, i) => (
+        <div
+          ref={scrollerRef}
+          onScroll={onScroll}
+          onPointerEnter={(e) => { if (e.pointerType === "mouse") hovering.current = true; }}
+          onPointerLeave={() => { hovering.current = false; }}
+          onPointerDown={pauseForInteraction}
+          onTouchStart={pauseForInteraction}
+          onWheel={pauseForInteraction}
+          className="relative touch-pan-x touch-pan-y no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-6 pb-2 md:gap-6 md:px-10"
+          style={{ scrollSnapType: "x mandatory" }}
+        >
+          {loopGallery.map((g, i) => (
             <motion.figure
               key={i}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
-              transition={{ duration: 0.7, delay: i * 0.05 }}
+              transition={{ duration: 0.7, delay: (i % gallery.length) * 0.05 }}
               className="shrink-0"
               style={{ scrollSnapAlign: "center" }}
+              aria-hidden={i >= gallery.length || undefined}
             >
               <img
                 src={g.src}
