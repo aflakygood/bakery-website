@@ -1,14 +1,15 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
+import { itemImage } from "@/lib/itemImage";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; created_at: string };
-type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number };
+type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; created_at: string };
+type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number; sort: number; image_url: string | null };
 type Drop = PickupFields & DropSchedule & { id: string; title: string };
 
 // <input type="datetime-local"> works in the admin's local time; the database stores UTC.
@@ -22,7 +23,9 @@ const fromLocalInput = (value: string) => (value ? new Date(value).toISOString()
 const phaseLabel = { upcoming: "not live yet", open: "taking preorders", ended: "ended (shows sold out)", closed: "closed early" } as const;
 
 type DropDraft = { opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
-type ItemDraft = { price: string; total_qty: string; max_per_order: string; description: string };
+type ItemDraft = { name: string; price: string; total_qty: string; max_per_order: string; description: string; image_url: string | null };
+// One editable menu row. id is null for items added here that haven't been saved yet.
+type Row = { key: string; id: string | null; draft: ItemDraft; file: File | null; preview: string | null };
 const dropDraftOf = (d: Drop): DropDraft => ({
   opens_at: toLocalInput(d.opens_at),
   closes_at: toLocalInput(d.closes_at),
@@ -32,11 +35,16 @@ const dropDraftOf = (d: Drop): DropDraft => ({
   pickup_location: d.pickup_location ?? "",
 });
 const itemDraftOf = (i: Item): ItemDraft => ({
+  name: i.name,
   price: String(i.price_cents / 100),
   total_qty: String(i.total_qty),
   max_per_order: String(i.max_per_order),
   description: i.description ?? "",
+  image_url: i.image_url ?? null,
 });
+const rowsOf = (items: Item[]): Row[] => items.map((item) => ({ key: item.id, id: item.id, draft: itemDraftOf(item), file: null, preview: null }));
+const blankDraft: ItemDraft = { name: "", price: "", total_qty: "0", max_per_order: "2", description: "", image_url: null };
+const photoTypes: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 const same = (a: object, b: object) => JSON.stringify(a) === JSON.stringify(b);
 
 export default function Admin() {
@@ -46,7 +54,7 @@ export default function Admin() {
   const [items, setItems] = useState<Item[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [dropDraft, setDropDraft] = useState<DropDraft | null>(null);
-  const [itemDrafts, setItemDrafts] = useState<Record<string, ItemDraft>>({});
+  const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirming, setConfirming] = useState<"close" | "next" | null>(null);
@@ -67,7 +75,7 @@ export default function Admin() {
     if (!latestDrop) return;
     const { data: dropItems } = await supabase.from("drop_items").select("*").eq("drop_id", latestDrop.id).order("sort");
     setItems((dropItems ?? []) as Item[]);
-    if (resetDrafts) setItemDrafts(Object.fromEntries(((dropItems ?? []) as Item[]).map((item) => [item.id, itemDraftOf(item)])));
+    if (resetDrafts) setRows(rowsOf((dropItems ?? []) as Item[]));
     const { data: paidOrders } = await supabase.from("orders").select("*").eq("drop_id", latestDrop.id).in("status", ["paid", "picked_up"]).order("created_at");
     setOrders((paidOrders ?? []) as unknown as Order[]);
   };
@@ -86,7 +94,11 @@ export default function Admin() {
     options: { redirectTo: `${window.location.origin}/admin` },
   });
 
-  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || items.some((item) => itemDrafts[item.id] && !same(itemDrafts[item.id], itemDraftOf(item))));
+  const rowChanged = (row: Row) => {
+    const item = row.id ? items.find((i) => i.id === row.id) : undefined;
+    return !item || !!row.file || !same(row.draft, itemDraftOf(item));
+  };
+  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || rows.some(rowChanged));
 
   useEffect(() => {
     if (!dirty) return;
@@ -96,7 +108,32 @@ export default function Admin() {
   }, [dirty]);
 
   const editDrop = (patch: Partial<DropDraft>) => { setNotice(null); setDropDraft((d) => (d ? { ...d, ...patch } : d)); };
-  const editItem = (id: string, patch: Partial<ItemDraft>) => { setNotice(null); setItemDrafts((all) => ({ ...all, [id]: { ...all[id], ...patch } })); };
+  const updateRow = (key: string, patch: Partial<Row>) => setRows((all) => all.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  const editItem = (key: string, patch: Partial<ItemDraft>) => {
+    setNotice(null);
+    setRows((all) => all.map((row) => (row.key === key ? { ...row, draft: { ...row.draft, ...patch } } : row)));
+  };
+  const pickPhoto = (row: Row, file: File | undefined) => {
+    if (!file) return;
+    if (!photoTypes[file.type]) return setNotice({ ok: false, text: "photos must be png, jpg or webp." });
+    if (file.size > 5 * 1024 * 1024) return setNotice({ ok: false, text: "photos must be under 5 MB." });
+    if (row.preview) URL.revokeObjectURL(row.preview);
+    setNotice(null);
+    updateRow(row.key, { file, preview: URL.createObjectURL(file) });
+  };
+  const clearPhoto = (row: Row) => {
+    if (row.preview) URL.revokeObjectURL(row.preview);
+    setNotice(null);
+    setRows((all) => all.map((r) => (r.key === row.key ? { ...r, file: null, preview: null, draft: { ...r.draft, image_url: null } } : r)));
+  };
+  const addItem = () => {
+    setNotice(null);
+    setRows((all) => [...all, { key: `new-${crypto.randomUUID()}`, id: null, draft: { ...blankDraft }, file: null, preview: null }]);
+  };
+  const removeNewItem = (row: Row) => {
+    if (row.preview) URL.revokeObjectURL(row.preview);
+    setRows((all) => all.filter((r) => r.key !== row.key));
+  };
 
   const save = async () => {
     if (!drop || !dropDraft) return;
@@ -111,32 +148,54 @@ export default function Admin() {
     if (dropDraft.opens_at && dropDraft.closes_at && dropDraft.closes_at <= dropDraft.opens_at)
       return setNotice({ ok: false, text: "closes must be after opens." });
 
-    const itemPatches: { id: string; patch: Partial<Item> }[] = [];
-    for (const item of items) {
-      const draft = itemDrafts[item.id];
-      if (!draft || same(draft, itemDraftOf(item))) continue;
-      const price = Number(draft.price), qty = Number(draft.total_qty), max = Number(draft.max_per_order);
-      if (draft.price === "" || !Number.isFinite(price) || price < 0) return setNotice({ ok: false, text: `check the price for ${item.name}.` });
-      if (draft.total_qty === "" || !Number.isInteger(qty) || qty < 0) return setNotice({ ok: false, text: `total spots for ${item.name} must be a whole number.` });
-      if (!Number.isInteger(max) || max < 1) return setNotice({ ok: false, text: `max / order for ${item.name} must be at least 1.` });
-      itemPatches.push({ id: item.id, patch: { price_cents: Math.round(price * 100), total_qty: qty, max_per_order: max, description: draft.description } });
+    const changed = rows.filter(rowChanged);
+    const fields: Record<string, Pick<Item, "name" | "price_cents" | "total_qty" | "max_per_order" | "description">> = {};
+    for (const row of changed) {
+      const d = row.draft, name = d.name.trim();
+      if (!name) return setNotice({ ok: false, text: "every item needs a name." });
+      if (name.length > 80) return setNotice({ ok: false, text: `${name.slice(0, 20)}… is too long a name (80 characters max).` });
+      const price = Number(d.price), qty = Number(d.total_qty), max = Number(d.max_per_order);
+      if (d.price === "" || !Number.isFinite(price) || price < 0) return setNotice({ ok: false, text: `check the price for ${name}.` });
+      if (d.total_qty === "" || !Number.isInteger(qty) || qty < 0) return setNotice({ ok: false, text: `total spots for ${name} must be a whole number.` });
+      if (!Number.isInteger(max) || max < 1) return setNotice({ ok: false, text: `max / order for ${name} must be at least 1.` });
+      fields[row.key] = { name, price_cents: Math.round(price * 100), total_qty: qty, max_per_order: max, description: d.description };
     }
 
     setSaving(true);
-    const results = await Promise.all([
-      ...(Object.keys(dropPatch).length ? [supabase.from("drops").update(dropPatch).eq("id", drop.id)] : []),
-      ...itemPatches.map(({ id, patch }) => supabase.from("drop_items").update(patch).eq("id", id)),
-    ]);
+    let error: string | null = null;
+    if (Object.keys(dropPatch).length) {
+      const result = await supabase.from("drops").update(dropPatch).eq("id", drop.id);
+      if (result.error) error = result.error.message;
+    }
+    let nextSort = Math.max(0, ...items.map((item) => item.sort)) + 1;
+    for (const row of changed) {
+      if (error) break;
+      let imageUrl = row.draft.image_url;
+      if (row.file) {
+        const path = `${crypto.randomUUID()}.${photoTypes[row.file.type]}`;
+        const upload = await supabase.storage.from("product-images").upload(path, row.file, { contentType: row.file.type, cacheControl: "31536000" });
+        if (upload.error) { error = upload.error.message; break; }
+        imageUrl = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+      }
+      const values = { ...fields[row.key], image_url: imageUrl };
+      const result = row.id
+        ? await supabase.from("drop_items").update(values).eq("id", row.id).select("id").single()
+        : await supabase.from("drop_items").insert({ ...values, drop_id: drop.id, sort: nextSort++ }).select("id").single();
+      if (result.error) { error = result.error.message; break; }
+      // Record progress so a retry after a partial failure doesn't re-insert or re-upload.
+      if (row.preview) URL.revokeObjectURL(row.preview);
+      updateRow(row.key, { id: result.data.id, file: null, preview: null, draft: { ...row.draft, name: values.name, image_url: imageUrl } });
+    }
     setSaving(false);
-    const failed = results.find((result) => result.error);
-    setNotice(failed ? { ok: false, text: `couldn't save: ${failed.error?.message}` } : { ok: true, text: "saved." });
-    await load(!failed);
+    setNotice(error ? { ok: false, text: `couldn't save: ${error}` } : { ok: true, text: "saved." });
+    await load(!error);
   };
   const discard = () => {
     if (!drop) return;
     setNotice(null);
     setDropDraft(dropDraftOf(drop));
-    setItemDrafts(Object.fromEntries(items.map((item) => [item.id, itemDraftOf(item)])));
+    rows.forEach((row) => row.preview && URL.revokeObjectURL(row.preview));
+    setRows(rowsOf(items));
   };
   const setOpen = async (isOpen: boolean) => {
     if (!drop) return;
@@ -193,7 +252,10 @@ export default function Admin() {
     </div>
   );
 
-  const tally = items.map((item) => ({ ...item, sold: orders.reduce((sum, order) => sum + (order.items.find((line) => line.name === item.name)?.qty ?? 0), 0) }));
+  // Older order lines may lack item_id; fall back to matching by name.
+  const sold = (item: Item) => orders.reduce((sum, order) => sum + order.items
+    .filter((line) => (line.item_id ? line.item_id === item.id : line.name === item.name))
+    .reduce((n, line) => n + line.qty, 0), 0);
 
   return (
     <div className="min-h-screen bg-background px-5 py-10 md:px-10">
@@ -249,29 +311,61 @@ export default function Admin() {
                 {dropDraft.pickup_location ? ` · ${dropDraft.pickup_location}` : ""}
               </p>
             </>)}
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full font-mono text-[12px] text-primary">
-                <thead className="text-left text-primary/60"><tr><th className="py-2">item</th><th>price $</th><th>total spots</th><th>max / order</th><th>sold</th></tr></thead>
-                <tbody>
-                  {tally.map((item) => {
-                    const draft = itemDrafts[item.id] ?? itemDraftOf(item);
-                    return (<Fragment key={item.id}>
-                      <tr className="border-t border-primary/10">
-                        <td className="py-2 pr-2">{item.name}</td>
-                        <td className="pr-2"><input type="number" min={0} step="0.5" className={`${field} w-20`} value={draft.price} onChange={(event) => editItem(item.id, { price: event.target.value })} /></td>
-                        <td className="pr-2"><input type="number" min={0} className={`${field} w-20`} value={draft.total_qty} onChange={(event) => editItem(item.id, { total_qty: event.target.value })} /></td>
-                        <td className="pr-2"><input type="number" min={1} className={`${field} w-20`} value={draft.max_per_order} onChange={(event) => editItem(item.id, { max_per_order: event.target.value })} /></td>
-                        <td>{item.sold} / {item.total_qty}</td>
-                      </tr>
-                      <tr><td colSpan={5} className="pb-3">
-                        <textarea rows={3} placeholder="description shown to customers" className={field} value={draft.description} onChange={(event) => editItem(item.id, { description: event.target.value })} />
-                      </td></tr>
-                    </Fragment>);
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="sticky bottom-4 mt-4 flex flex-wrap items-center justify-end gap-3 rounded-md bg-secondary/95 py-2 backdrop-blur">
+            <p className="mt-6 font-mono text-[11px] text-primary/60">menu items</p>
+            <ul className="mt-1 space-y-3">
+              {rows.map((row) => {
+                const d = row.draft;
+                const img = row.preview ? { src: row.preview, cutout: row.file?.type !== "image/jpeg" } : itemImage(d.name, d.image_url);
+                const item = row.id ? items.find((i) => i.id === row.id) : undefined;
+                const label = d.name.trim() || "new item";
+                return (
+                  <li key={row.key} className="rounded-md bg-background p-4">
+                    <div className="flex gap-4">
+                      <div className="w-24 shrink-0">
+                        <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-sm bg-secondary">
+                          <img src={img.src} alt="" className={img.cutout ? "h-[85%] w-[85%] object-contain" : "h-full w-full object-cover"} />
+                        </div>
+                        <label className="mt-2 block cursor-pointer text-center font-mono text-[11px] text-primary underline focus-within:outline focus-within:outline-2">
+                          change photo
+                          <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label={`change photo for ${label}`}
+                            onChange={(event) => { pickPhoto(row, event.target.files?.[0]); event.target.value = ""; }} />
+                        </label>
+                        {(row.file || d.image_url) && (
+                          <button onClick={() => clearPhoto(row)} className="mt-1 block w-full text-center font-mono text-[11px] text-primary/60 underline">use default</button>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <label className="block font-mono text-[11px] text-primary/60">name
+                          <input className={field} value={d.name} maxLength={80} placeholder="e.g. cardamom bun" onChange={(event) => editItem(row.key, { name: event.target.value })} />
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <label className="font-mono text-[11px] text-primary/60">price $
+                            <input type="number" min={0} step="0.5" inputMode="decimal" className={field} value={d.price} onChange={(event) => editItem(row.key, { price: event.target.value })} />
+                          </label>
+                          <label className="font-mono text-[11px] text-primary/60">total spots
+                            <input type="number" min={0} inputMode="numeric" className={field} value={d.total_qty} onChange={(event) => editItem(row.key, { total_qty: event.target.value })} />
+                          </label>
+                          <label className="font-mono text-[11px] text-primary/60">max / order
+                            <input type="number" min={1} inputMode="numeric" className={field} value={d.max_per_order} onChange={(event) => editItem(row.key, { max_per_order: event.target.value })} />
+                          </label>
+                        </div>
+                        {item ? (
+                          <p className="font-mono text-[11px] text-primary/60">sold {sold(item)} / {item.total_qty}</p>
+                        ) : (
+                          <button onClick={() => removeNewItem(row)} className="font-mono text-[11px] text-primary/60 underline">remove</button>
+                        )}
+                      </div>
+                    </div>
+                    <textarea rows={3} placeholder="description shown to customers" aria-label={`description for ${label}`} className={`${field} mt-3`}
+                      value={d.description} onChange={(event) => editItem(row.key, { description: event.target.value })} />
+                  </li>
+                );
+              })}
+            </ul>
+            <button onClick={addItem} className="mt-3 w-full rounded-md border border-dashed border-primary/40 py-3 font-mono text-[12px] text-primary">
+              + add more items
+            </button>
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-primary/10 pt-4">
               {notice ? (
                 <p role="status" className={`mr-auto font-mono text-[12px] ${notice.ok ? "text-primary/70" : "text-destructive"}`}>{notice.text}</p>
               ) : dirty && <p className="mr-auto font-mono text-[12px] text-primary/70">unsaved changes</p>}

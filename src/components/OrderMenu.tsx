@@ -8,30 +8,9 @@ import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import focacciaFallback from "@/assets/gallery/IMGC0090_Original.jpg";
-import croissantFallback from "@/assets/gallery/20260427_201323.jpg";
-import painFallback from "@/assets/gallery/IMGC9697.CR3.jpg";
-import mushroomFallback from "@/assets/gallery/IMGC0079_Original.jpg";
-import sourdoughFallback from "@/assets/gallery/IMGC9615.CR3.jpg";
+import { itemImage } from "@/lib/itemImage";
 
-// Product photos dropped into src/assets/products/ (transparent cut-outs, e.g. croissant.webp) override the gallery fallbacks.
-const productPhotos = import.meta.glob<string>("@/assets/products/*.{png,jpg,jpeg,webp}", {
-  eager: true,
-  import: "default",
-});
-type ItemImage = { src: string; cutout: boolean };
-const productPhoto = (slug: string, fallback: string): ItemImage => {
-  const src = Object.entries(productPhotos).find(([path]) => path.split("/").pop()?.replace(/\.\w+$/, "") === slug)?.[1];
-  return src ? { src, cutout: true } : { src: fallback, cutout: false };
-};
-
-const focacciaAsset = productPhoto("olive-focaccia", focacciaFallback);
-const croissantAsset = productPhoto("croissant", croissantFallback);
-const painAsset = productPhoto("pain-au-chocolat", painFallback);
-const mushroomAsset = productPhoto("mushroom-focaccia", mushroomFallback);
-const sourdoughAsset = productPhoto("sourdough", sourdoughFallback);
-
-type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number };
+type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number; image_url: string | null };
 type DropRow = PickupFields & DropSchedule & { id: string; title: string };
 type Confirmation = {
   customer_name: string;
@@ -51,17 +30,6 @@ declare global {
     removeHelcimPayIframe?: () => void;
   }
 }
-
-const IMG = (id: string) => `https://images.unsplash.com/${id}?w=400&q=80&auto=format&fit=crop`;
-const itemImage = (name: string): ItemImage => {
-  const n = name.toLowerCase();
-  if (n.includes("sourdough")) return sourdoughAsset;
-  if (n.includes("mushroom")) return mushroomAsset;
-  if (n.includes("focaccia")) return focacciaAsset;
-  if (n.includes("chocolat")) return painAsset;
-  if (n.includes("croissant")) return croissantAsset;
-  return { src: IMG("photo-1555507036-ab1f4038808a"), cutout: false };
-};
 
 const money = (c: number) => `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
 
@@ -248,7 +216,7 @@ export default function OrderMenu() {
 
   const input = "w-full rounded-[6px] border border-primary/15 bg-background px-4 py-3 font-mono text-[15px] text-primary placeholder:text-primary/40 focus:outline-none focus:border-primary/50";
 
-  if (confirmation) return <OrderConfirmation c={confirmation} orderRef={orderRef} reduceMotion={!!reduceMotion} />;
+  if (confirmation) return <OrderConfirmation c={confirmation} orderRef={orderRef} menu={items} reduceMotion={!!reduceMotion} />;
 
   if (isSupabaseConfigured && (!loaded || phase === "upcoming")) return (
     <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
@@ -313,8 +281,8 @@ export default function OrderMenu() {
                       <li key={i.id} className="group">
                          <div className="relative aspect-[4/5] overflow-hidden rounded-[6px] bg-secondary/60">
                            <Button type="button" variant="ghost" onClick={() => openItem(i)} className="flex h-full w-full items-center justify-center overflow-hidden rounded-none p-0 hover:bg-transparent" aria-label={`view ${i.name}`}>
-                          <img src={itemImage(i.name).src} alt={i.name} loading="lazy"
-                             className={`${itemImage(i.name).cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} transition-transform duration-700 group-hover:scale-105`} />
+                          <img src={itemImage(i.name, i.image_url).src} alt={i.name} loading="lazy"
+                             className={`${itemImage(i.name, i.image_url).cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} transition-transform duration-700 group-hover:scale-105`} />
                            </Button>
                            <motion.div
                              initial={false}
@@ -413,8 +381,8 @@ export default function OrderMenu() {
             <X className="h-4 w-4" />
           </button>
           <div className="mx-auto w-full max-w-[760px]">
-            <img src={itemImage(sel.name).src} alt={sel.name}
-              className={cn("aspect-[3/2] w-full", itemImage(sel.name).cutout ? "bg-secondary/60 object-contain p-6" : "object-cover")} />
+            <img src={itemImage(sel.name, sel.image_url).src} alt={sel.name}
+              className={cn("aspect-[3/2] w-full", itemImage(sel.name, sel.image_url).cutout ? "bg-secondary/60 object-contain p-6" : "object-cover")} />
             <div className="px-6 py-8">
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
               <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
@@ -451,7 +419,7 @@ export default function OrderMenu() {
   );
 }
 
-function OrderConfirmation({ c, orderRef, reduceMotion }: { c: Confirmation; orderRef: OrderRef | null; reduceMotion: boolean }) {
+function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmation; orderRef: OrderRef | null; menu: Item[]; reduceMotion: boolean }) {
   const name = c.customer_name.trim();
   // Decided once so the checkbox stays put (and can be unticked) after opting in here.
   const [offerSms] = useState(!c.sms_opt_in && !!orderRef);
@@ -525,7 +493,7 @@ function OrderConfirmation({ c, orderRef, reduceMotion }: { c: Confirmation; ord
           <p className={label}>your order</p>
           <ul className="mt-4 divide-y divide-primary/10">
             {c.items.map((i) => {
-              const img = itemImage(i.name);
+              const img = itemImage(i.name, menu.find((m) => m.name === i.name)?.image_url);
               return (
                 <li key={i.name} className="flex items-center gap-4 py-3 first:pt-0">
                   <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-secondary">
