@@ -304,12 +304,16 @@ export default function OrderMenu() {
                           onBlur={() => form.phone && setPhoneMsg(phoneError(form.phone))} />
                         {phoneMsg && <p id="checkout-phone-error" role="alert" className="mt-1.5 font-mono text-[12px] normal-case text-destructive">{phoneMsg}</p>}
                       </div>
-                      <label htmlFor="checkout-sms-opt-in" className="flex cursor-pointer items-center gap-3 pt-1 font-mono text-[15px] text-primary">
-                        <Checkbox id="checkout-sms-opt-in" checked={form.sms_opt_in}
-                          onCheckedChange={(v) => setForm({ ...form, sms_opt_in: v === true })}
-                          className="h-5 w-5 rounded-[4px]" />
-                        receive order updates on phone
-                      </label>
+                      <div className="pt-1">
+                        <label htmlFor="checkout-sms-opt-in" className="flex cursor-pointer items-center gap-3 font-mono text-[15px] text-primary">
+                          <Checkbox id="checkout-sms-opt-in" checked={form.sms_opt_in}
+                            onCheckedChange={(v) => setForm({ ...form, sms_opt_in: v === true })}
+                            aria-describedby="checkout-sms-terms"
+                            className="h-5 w-5 rounded-[4px]" />
+                          receive order updates on phone
+                        </label>
+                        <p id="checkout-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
+                      </div>
                     </div>
                   )}
 
