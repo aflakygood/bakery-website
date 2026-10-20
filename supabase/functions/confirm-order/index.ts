@@ -16,6 +16,28 @@ async function sha256(s: string) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// Only called after the payment hash is verified. The full pickup address lives in the
+// server-only private_settings table and is never exposed anywhere else.
+// deno-lint-ignore no-explicit-any
+async function confirmationFor(db: any, order: any) {
+  try {
+    const [{ data: drop }, { data: address }] = await Promise.all([
+      db.from("drops").select("pickup_info, pickup_date, pickup_start, pickup_end, pickup_location").eq("id", order.drop_id).maybeSingle(),
+      db.from("private_settings").select("value").eq("key", "pickup_address").maybeSingle(),
+    ]);
+    return {
+      customer_name: order.customer_name,
+      items: (order.items ?? []).map((i: { name: string; qty: number; price_cents: number }) => ({ name: i.name, qty: i.qty, price_cents: i.price_cents })),
+      total_cents: order.total_cents,
+      pickup: drop ?? null,
+      pickup_address: address?.value ?? null,
+    };
+  } catch (e) {
+    console.error("confirmation details failed", e);
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -43,7 +65,7 @@ Deno.serve(async (req) => {
     if (!approved || paidAmount !== order.total_cents) return json({ error: "Payment not approved" }, 400);
 
     await db.from("orders").update({ status: "paid", transaction_id: String(payload.transactionId ?? "") }).eq("id", order_id);
-    return json({ ok: true });
+    return json({ ok: true, confirmation: await confirmationFor(db, order) });
   } catch (e) {
     console.error(e);
     return json({ error: "Something went wrong" }, 500);

@@ -32,6 +32,13 @@ const sourdoughAsset = productPhoto("sourdough", sourdoughFallback);
 
 type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number };
 type DropRow = PickupFields & { id: string; title: string; is_open: boolean };
+type Confirmation = {
+  customer_name: string;
+  items: { name: string; qty: number; price_cents: number }[];
+  total_cents: number;
+  pickup: PickupFields | null;
+  pickup_address: string | null;
+};
 
 declare global {
   interface Window {
@@ -101,7 +108,7 @@ export default function OrderMenu() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [phoneMsg, setPhoneMsg] = useState("");
-  const [done, setDone] = useState(false);
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 
   const load = async () => {
     if (!isSupabaseConfigured) return;
@@ -182,10 +189,18 @@ export default function OrderMenu() {
           finished = true;
           window.removeEventListener("message", onMsg);
           window.removeHelcimPayIframe?.();
-          const { error: cErr } = await supabase.functions.invoke("confirm-order", {
+          const { data: cData, error: cErr } = await supabase.functions.invoke("confirm-order", {
             body: { order_id, action: "confirm", event_message: ev.data.eventMessage },
           });
-          if (cErr) setError(await errText(cErr)); else { setDone(true); setQty({}); }
+          if (cErr) setError(await errText(cErr));
+          else {
+            const cartLines = items.filter((i) => (qty[i.id] ?? 0) > 0).map((i) => ({ name: i.name, qty: qty[i.id], price_cents: i.price_cents }));
+            setConfirmation(cData?.confirmation ?? {
+              customer_name: form.customer_name, items: cartLines, total_cents: total, pickup: drop, pickup_address: null,
+            });
+            setQty({});
+            window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+          }
           setBusy(false); load();
         } else if ((ev.data.eventStatus === "ABORTED" || ev.data.eventStatus === "HIDE") && !finished) {
           finished = true;
@@ -205,6 +220,8 @@ export default function OrderMenu() {
   };
 
   const input = "w-full rounded-[6px] border border-primary/15 bg-background px-4 py-3 font-mono text-[15px] text-primary placeholder:text-primary/40 focus:outline-none focus:border-primary/50";
+
+  if (confirmation) return <OrderConfirmation c={confirmation} reduceMotion={!!reduceMotion} />;
 
   return (
     <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
@@ -245,13 +262,7 @@ export default function OrderMenu() {
               )}
             </div>
             <div className="pt-2">
-              {!isSupabaseConfigured ? null : done ? (
-                <div className="mt-8 rounded-[6px] bg-background p-6 text-center">
-                  <Check className="mx-auto h-6 w-6 text-primary" />
-                  <h3 className="mt-3 font-display text-2xl font-black tracking-brand text-primary">you're in.</h3>
-                  <p className="mt-2 font-mono text-[13px] text-primary/75">payment received. pickup details will follow by DM.</p>
-                </div>
-              ) : (
+              {!isSupabaseConfigured ? null : (
                 <form onSubmit={checkout} className="mt-6 space-y-6">
                   <ul className="grid grid-cols-2 gap-4 md:gap-6">
                     {items.map((i) => (
@@ -381,6 +392,82 @@ export default function OrderMenu() {
           )}
         </div>
       )}
+    </section>
+  );
+}
+
+function OrderConfirmation({ c, reduceMotion }: { c: Confirmation; reduceMotion: boolean }) {
+  const name = c.customer_name.trim();
+  const where = c.pickup_address ?? c.pickup?.pickup_location;
+  const label = "font-display text-[20px] font-black tracking-brand text-primary";
+  return (
+    <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+        className="mx-auto max-w-[640px] px-6 md:px-10"
+      >
+        <div className="flex flex-col items-center text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <h2 className="mt-6 font-display text-4xl font-black tracking-brand text-primary md:text-6xl">
+            you're in{name ? ` ${name}` : ""}.
+          </h2>
+          <p className="mt-3 font-mono text-[17px] text-primary/75">thank you for your order.</p>
+        </div>
+
+        <div className="mt-10 rounded-[6px] bg-secondary p-5 md:mt-12 md:p-6">
+          <p className={label}>pickup details</p>
+          <ul className="mt-4 space-y-2 font-mono text-[15px] text-primary">
+            {c.pickup && (
+              <li className="flex items-start gap-3">
+                <Calendar className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{pickupWhen(c.pickup)}</span>
+              </li>
+            )}
+            {where && (
+              <li className="flex items-start gap-3">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className={c.pickup_address ? "normal-case" : undefined}>{where}</span>
+              </li>
+            )}
+          </ul>
+        </div>
+
+        <div className="mt-4 rounded-[6px] border border-primary/15 p-5 md:p-6">
+          <p className={label}>your order</p>
+          <ul className="mt-4 divide-y divide-primary/10">
+            {c.items.map((i) => {
+              const img = itemImage(i.name);
+              return (
+                <li key={i.name} className="flex items-center gap-4 py-3 first:pt-0">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-secondary">
+                    <img src={img.src} alt="" loading="lazy"
+                      className={img.cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-[17px] font-black tracking-brand text-primary">{i.name}</p>
+                    <p className="font-mono text-[13px] text-primary/60">{i.qty} × {money(i.price_cents)}</p>
+                  </div>
+                  <span className="font-mono text-[15px] text-primary">{money(i.qty * i.price_cents)}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-2 flex items-center justify-between border-t border-primary/15 pt-4 font-display text-xl font-black tracking-brand text-primary">
+            <span>total</span>
+            <span>{money(c.total_cents)}</span>
+          </div>
+        </div>
+
+        <div className="mt-10 text-center">
+          <a href="/" className="font-mono text-[15px] text-primary underline decoration-primary/30 underline-offset-4 hover:decoration-primary">
+            back to home
+          </a>
+        </div>
+      </motion.div>
     </section>
   );
 }
