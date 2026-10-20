@@ -36,9 +36,11 @@ type Confirmation = {
   customer_name: string;
   items: { name: string; qty: number; price_cents: number }[];
   total_cents: number;
+  sms_opt_in: boolean;
   pickup: PickupFields | null;
   pickup_address: string | null;
 };
+type OrderRef = { order_id: string; checkout_token: string };
 
 declare global {
   interface Window {
@@ -109,6 +111,7 @@ export default function OrderMenu() {
   const [error, setError] = useState("");
   const [phoneMsg, setPhoneMsg] = useState("");
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [orderRef, setOrderRef] = useState<OrderRef | null>(null);
 
   const load = async () => {
     if (!isSupabaseConfigured) return;
@@ -196,8 +199,9 @@ export default function OrderMenu() {
           else {
             const cartLines = items.filter((i) => (qty[i.id] ?? 0) > 0).map((i) => ({ name: i.name, qty: qty[i.id], price_cents: i.price_cents }));
             setConfirmation(cData?.confirmation ?? {
-              customer_name: form.customer_name, items: cartLines, total_cents: total, pickup: drop, pickup_address: null,
+              customer_name: form.customer_name, items: cartLines, total_cents: total, sms_opt_in: form.sms_opt_in, pickup: drop, pickup_address: null,
             });
+            setOrderRef({ order_id, checkout_token: checkoutToken });
             setQty({});
             window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
           }
@@ -221,7 +225,7 @@ export default function OrderMenu() {
 
   const input = "w-full rounded-[6px] border border-primary/15 bg-background px-4 py-3 font-mono text-[15px] text-primary placeholder:text-primary/40 focus:outline-none focus:border-primary/50";
 
-  if (confirmation) return <OrderConfirmation c={confirmation} reduceMotion={!!reduceMotion} />;
+  if (confirmation) return <OrderConfirmation c={confirmation} orderRef={orderRef} reduceMotion={!!reduceMotion} />;
 
   return (
     <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
@@ -396,8 +400,24 @@ export default function OrderMenu() {
   );
 }
 
-function OrderConfirmation({ c, reduceMotion }: { c: Confirmation; reduceMotion: boolean }) {
+function OrderConfirmation({ c, orderRef, reduceMotion }: { c: Confirmation; orderRef: OrderRef | null; reduceMotion: boolean }) {
   const name = c.customer_name.trim();
+  // Decided once so the checkbox stays put (and can be unticked) after opting in here.
+  const [offerSms] = useState(!c.sms_opt_in && !!orderRef);
+  const [smsOptIn, setSmsOptIn] = useState(c.sms_opt_in);
+  const [smsError, setSmsError] = useState("");
+  const updateSms = async (next: boolean) => {
+    if (!orderRef) return;
+    setSmsOptIn(next);
+    setSmsError("");
+    const { error } = await supabase.functions.invoke("confirm-order", {
+      body: { ...orderRef, action: "sms_opt_in", sms_opt_in: next },
+    });
+    if (error) {
+      setSmsOptIn(!next);
+      setSmsError("couldn't save that, please try again.");
+    }
+  };
   const where = c.pickup_address ?? c.pickup?.pickup_location;
   const label = "font-display text-[20px] font-black tracking-brand text-primary";
   return (
@@ -436,7 +456,21 @@ function OrderConfirmation({ c, reduceMotion }: { c: Confirmation; reduceMotion:
           </ul>
         </div>
 
-        <div className="mt-4 rounded-[6px] border border-primary/15 p-5 md:p-6">
+        {offerSms && (
+          <div className="mt-5 px-1">
+            <label htmlFor="confirm-sms-opt-in" className="flex cursor-pointer items-center gap-3 font-mono text-[15px] text-primary">
+              <Checkbox id="confirm-sms-opt-in" checked={smsOptIn}
+                onCheckedChange={(v) => updateSms(v === true)}
+                aria-describedby="confirm-sms-terms"
+                className="h-5 w-5 rounded-[4px]" />
+              receive order updates on phone
+            </label>
+            <p id="confirm-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
+            {smsError && <p role="alert" className="mt-1.5 pl-8 font-mono text-[12px] text-destructive">{smsError}</p>}
+          </div>
+        )}
+
+        <div className="mt-5 rounded-[6px] border border-primary/15 p-5 md:p-6">
           <p className={label}>your order</p>
           <ul className="mt-4 divide-y divide-primary/10">
             {c.items.map((i) => {

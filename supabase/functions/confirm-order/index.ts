@@ -4,8 +4,10 @@ import { z } from "npm:zod@3";
 
 const Body = z.object({
   order_id: z.string().uuid(),
-  action: z.enum(["confirm", "cancel"]),
+  action: z.enum(["confirm", "cancel", "sms_opt_in"]),
   event_message: z.unknown().optional(),
+  checkout_token: z.string().min(1).optional(),
+  sms_opt_in: z.boolean().optional(),
 });
 
 const json = (b: unknown, status = 200) =>
@@ -29,6 +31,7 @@ async function confirmationFor(db: any, order: any) {
       customer_name: order.customer_name,
       items: (order.items ?? []).map((i: { name: string; qty: number; price_cents: number }) => ({ name: i.name, qty: i.qty, price_cents: i.price_cents })),
       total_cents: order.total_cents,
+      sms_opt_in: !!order.sms_opt_in,
       pickup: drop ?? null,
       pickup_address: address?.value ?? null,
     };
@@ -46,6 +49,18 @@ Deno.serve(async (req) => {
     const { order_id, action, event_message } = parsed.data;
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: order } = await db.from("orders").select("*").eq("id", order_id).maybeSingle();
+
+    // Post-purchase SMS opt-in from the confirmation page. The checkout token is only known
+    // to the browser that placed the order, so nobody can change someone else's preference.
+    if (action === "sms_opt_in") {
+      const { checkout_token, sms_opt_in } = parsed.data;
+      if (!order || order.status !== "paid" || !checkout_token || checkout_token !== order.checkout_token || sms_opt_in === undefined) {
+        return json({ error: "Order not found" }, 404);
+      }
+      await db.from("orders").update({ sms_opt_in }).eq("id", order_id);
+      return json({ ok: true });
+    }
+
     if (!order || order.status !== "pending") return json({ error: "Order not found" }, 404);
 
     if (action === "cancel") {
