@@ -222,8 +222,9 @@ export default function OrderMenu() {
         >
           <div>
             <div className="mt-6 rounded-[6px] bg-secondary p-5 md:p-6">
-              <span className="inline-flex items-center gap-2 rounded-full bg-background/90 px-3 py-1.5 font-mono text-[11px] lowercase tracking-brand text-primary">
-                <span className={`h-1.5 w-1.5 rounded-full bg-primary ${open ? "animate-pulse" : "opacity-40"}`} />
+              <span className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-mono text-[11px] lowercase tracking-brand",
+                open ? "bg-primary text-primary-foreground" : "bg-background/90 text-primary")}>
+                <span className={cn("rounded-full", open ? "h-2 w-2 animate-pulse bg-primary-foreground" : "h-1.5 w-1.5 bg-primary opacity-40")} />
                 {open ? "preorders open" : soldOut ? "sold out" : "preorders closed"}
               </span>
               {!isSupabaseConfigured ? (
