@@ -5,33 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
+import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
-import focacciaFallback from "@/assets/gallery/IMGC0090_Original.jpg";
-import croissantFallback from "@/assets/gallery/20260427_201323.jpg";
-import painFallback from "@/assets/gallery/IMGC9697.CR3.jpg";
-import mushroomFallback from "@/assets/gallery/IMGC0079_Original.jpg";
-import sourdoughFallback from "@/assets/gallery/IMGC9615.CR3.jpg";
+import { itemImage } from "@/lib/itemImage";
 
-// Product photos dropped into src/assets/products/ (transparent cut-outs, e.g. croissant.webp) override the gallery fallbacks.
-const productPhotos = import.meta.glob<string>("@/assets/products/*.{png,jpg,jpeg,webp}", {
-  eager: true,
-  import: "default",
-});
-type ItemImage = { src: string; cutout: boolean };
-const productPhoto = (slug: string, fallback: string): ItemImage => {
-  const src = Object.entries(productPhotos).find(([path]) => path.split("/").pop()?.replace(/\.\w+$/, "") === slug)?.[1];
-  return src ? { src, cutout: true } : { src: fallback, cutout: false };
+type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number; image_url: string | null };
+type DropRow = PickupFields & DropSchedule & { id: string; title: string };
+type Confirmation = {
+  customer_name: string;
+  items: { name: string; qty: number; price_cents: number }[];
+  total_cents: number;
+  subtotal_cents?: number;
+  discount_percent?: number | null;
+  sms_opt_in: boolean;
+  pickup: PickupFields | null;
+  pickup_address: string | null;
 };
-
-const focacciaAsset = productPhoto("olive-focaccia", focacciaFallback);
-const croissantAsset = productPhoto("croissant", croissantFallback);
-const painAsset = productPhoto("pain-au-chocolat", painFallback);
-const mushroomAsset = productPhoto("mushroom-focaccia", mushroomFallback);
-const sourdoughAsset = productPhoto("sourdough", sourdoughFallback);
-
-type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number };
-type DropRow = PickupFields & { id: string; title: string; is_open: boolean };
+type OrderRef = { order_id: string; checkout_token: string };
 
 declare global {
   interface Window {
@@ -39,17 +30,6 @@ declare global {
     removeHelcimPayIframe?: () => void;
   }
 }
-
-const IMG = (id: string) => `https://images.unsplash.com/${id}?w=400&q=80&auto=format&fit=crop`;
-const itemImage = (name: string): ItemImage => {
-  const n = name.toLowerCase();
-  if (n.includes("sourdough")) return sourdoughAsset;
-  if (n.includes("mushroom")) return mushroomAsset;
-  if (n.includes("focaccia")) return focacciaAsset;
-  if (n.includes("chocolat")) return painAsset;
-  if (n.includes("croissant")) return croissantAsset;
-  return { src: IMG("photo-1555507036-ab1f4038808a"), cutout: false };
-};
 
 const money = (c: number) => `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
 
@@ -95,18 +75,21 @@ const cleanPhone = (raw: string, prev: string) => {
 export default function OrderMenu() {
   const reduceMotion = useReducedMotion();
   const [drop, setDrop] = useState<DropRow | null>(null);
+  const [loaded, setLoaded] = useState(!isSupabaseConfigured);
+  const now = useNow();
   const [items, setItems] = useState<Item[]>([]);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [form, setForm] = useState({ customer_name: "", phone: "", sms_opt_in: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [phoneMsg, setPhoneMsg] = useState("");
-  const [done, setDone] = useState(false);
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [orderRef, setOrderRef] = useState<OrderRef | null>(null);
 
   const load = async () => {
     if (!isSupabaseConfigured) return;
     const { data: d } = await supabase.from("drops").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!d) return;
+    if (!d) { setLoaded(true); return; }
     setDrop(d);
     const { data: its } = await supabase.from("drop_items").select("*").eq("drop_id", d.id).order("sort");
     const withRemaining = await Promise.all(
@@ -116,12 +99,28 @@ export default function OrderMenu() {
       }),
     );
     setItems(withRemaining);
+    setLoaded(true);
   };
   useEffect(() => { load(); }, []);
 
-  const soldOut = items.length > 0 && items.every((i) => i.remaining === 0);
-  const open = !!drop?.is_open && !soldOut;
+  const phase = drop ? dropPhase(drop, now) : "upcoming";
+  const soldOut = phase === "ended" || (items.length > 0 && items.every((i) => i.remaining === 0));
+  const open = phase === "open" && !soldOut;
   const total = useMemo(() => items.reduce((s, i) => s + (qty[i.id] ?? 0) * i.price_cents, 0), [items, qty]);
+
+  // Secret codes in brackets in the name, e.g. "Ayush (friends)". The server re-checks at checkout.
+  const [discountPct, setDiscountPct] = useState<number | null>(null);
+  useEffect(() => {
+    const name = form.customer_name;
+    if (!isSupabaseConfigured || !/\([^()]+\)/.test(name)) { setDiscountPct(null); return; }
+    let stale = false;
+    const t = setTimeout(async () => {
+      const { data } = await supabase.functions.invoke("check-discount", { body: { name } });
+      if (!stale) setDiscountPct(typeof data?.percent === "number" ? data.percent : null);
+    }, 400);
+    return () => { stale = true; clearTimeout(t); };
+  }, [form.customer_name]);
+  const payTotal = discountPct ? total - Math.round((total * discountPct) / 100) : total;
 
   const [limitMsg, setLimitMsg] = useState<Record<string, string>>({});
   const change = (i: Item, d: number) => {
@@ -182,10 +181,21 @@ export default function OrderMenu() {
           finished = true;
           window.removeEventListener("message", onMsg);
           window.removeHelcimPayIframe?.();
-          const { error: cErr } = await supabase.functions.invoke("confirm-order", {
+          const { data: cData, error: cErr } = await supabase.functions.invoke("confirm-order", {
             body: { order_id, action: "confirm", event_message: ev.data.eventMessage },
           });
-          if (cErr) setError(await errText(cErr)); else { setDone(true); setQty({}); }
+          if (cErr) setError(await errText(cErr));
+          else {
+            const cartLines = items.filter((i) => (qty[i.id] ?? 0) > 0).map((i) => ({ name: i.name, qty: qty[i.id], price_cents: i.price_cents }));
+            setConfirmation(cData?.confirmation ?? {
+              customer_name: discountPct ? form.customer_name.replace(/\([^()]*\)/g, " ").replace(/\s+/g, " ").trim() : form.customer_name,
+              items: cartLines, total_cents: payTotal, subtotal_cents: total, discount_percent: discountPct,
+              sms_opt_in: form.sms_opt_in, pickup: drop, pickup_address: null,
+            });
+            setOrderRef({ order_id, checkout_token: checkoutToken });
+            setQty({});
+            window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+          }
           setBusy(false); load();
         } else if ((ev.data.eventStatus === "ABORTED" || ev.data.eventStatus === "HIDE") && !finished) {
           finished = true;
@@ -205,6 +215,25 @@ export default function OrderMenu() {
   };
 
   const input = "w-full rounded-[6px] border border-primary/15 bg-background px-4 py-3 font-mono text-[15px] text-primary placeholder:text-primary/40 focus:outline-none focus:border-primary/50";
+
+  if (confirmation) return <OrderConfirmation c={confirmation} orderRef={orderRef} menu={items} reduceMotion={!!reduceMotion} />;
+
+  if (isSupabaseConfigured && (!loaded || phase === "upcoming")) return (
+    <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
+      <div className="mx-auto flex min-h-[45vh] max-w-[640px] flex-col items-center justify-center px-6 text-center md:px-10">
+        {loaded && (
+          <>
+            <h2 className="font-display text-4xl font-black tracking-brand text-primary md:text-6xl">next drop coming soon.</h2>
+            <p className="mt-4 font-mono text-[17px] text-primary/75">new menus are posted on instagram first.</p>
+            <a href="https://www.instagram.com/aflakygood/" target="_blank" rel="noopener noreferrer"
+              className="mt-8 rounded-[6px] bg-primary px-6 py-3.5 font-mono text-[16px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">
+              follow @aflakygood
+            </a>
+          </>
+        )}
+      </div>
+    </section>
+  );
 
   return (
     <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
@@ -230,7 +259,7 @@ export default function OrderMenu() {
               {!isSupabaseConfigured ? (
                 <p className="mt-4 font-mono text-[15px] leading-relaxed text-primary/80">preorders are coming soon.</p>
               ) : drop && (
-                <ul className="mt-4 space-y-0.5 font-mono text-[15px] text-primary">
+                <ul className="mt-4 space-y-2 font-mono text-[15px] text-primary">
                   <li className="flex items-start gap-3">
                     <Calendar className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                     <span>{pickupWhen(drop)}</span>
@@ -245,21 +274,15 @@ export default function OrderMenu() {
               )}
             </div>
             <div className="pt-2">
-              {!isSupabaseConfigured ? null : done ? (
-                <div className="mt-8 rounded-[6px] bg-background p-6 text-center">
-                  <Check className="mx-auto h-6 w-6 text-primary" />
-                  <h3 className="mt-3 font-display text-2xl font-black tracking-brand text-primary">you're in.</h3>
-                  <p className="mt-2 font-mono text-[13px] text-primary/75">payment received. pickup details will follow by DM.</p>
-                </div>
-              ) : (
+              {!isSupabaseConfigured ? null : (
                 <form onSubmit={checkout} className="mt-6 space-y-6">
                   <ul className="grid grid-cols-2 gap-4 md:gap-6">
                     {items.map((i) => (
                       <li key={i.id} className="group">
                          <div className="relative aspect-[4/5] overflow-hidden rounded-[6px] bg-secondary/60">
                            <Button type="button" variant="ghost" onClick={() => openItem(i)} className="flex h-full w-full items-center justify-center overflow-hidden rounded-none p-0 hover:bg-transparent" aria-label={`view ${i.name}`}>
-                          <img src={itemImage(i.name).src} alt={i.name} loading="lazy"
-                             className={`${itemImage(i.name).cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} transition-transform duration-700 group-hover:scale-105`} />
+                          <img src={itemImage(i.name, i.image_url).src} alt={i.name} loading="lazy"
+                             className={`${itemImage(i.name, i.image_url).cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} transition-transform duration-700 group-hover:scale-105`} />
                            </Button>
                            <motion.div
                              initial={false}
@@ -320,7 +343,7 @@ export default function OrderMenu() {
                             onCheckedChange={(v) => setForm({ ...form, sms_opt_in: v === true })}
                             aria-describedby="checkout-sms-terms"
                             className="h-5 w-5 rounded-[4px]" />
-                          receive order updates on phone
+                          receive order and pickup updates
                         </label>
                         <p id="checkout-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
                       </div>
@@ -329,11 +352,22 @@ export default function OrderMenu() {
 
                   {error && <p className="font-mono text-[12px] text-destructive">{error}</p>}
 
-                  <button type="submit" disabled={!open || busy || total === 0}
-                    className="flex w-full items-center justify-between rounded-[6px] bg-primary px-5 py-4 font-mono text-[16px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
-                    <span>{busy ? "opening payment…" : open ? "checkout" : soldOut ? "sold out" : "preorders closed"}</span>
-                    <span>{money(total)}</span>
-                  </button>
+                  <div>
+                    {discountPct && total > 0 ? (
+                      <div role="status" className="relative mb-3 rounded-[6px] bg-secondary px-4 py-2.5 text-center font-mono text-[14px] text-primary">
+                        your <span className="font-bold">{discountPct}% discount</span> is applied.
+                        <span aria-hidden="true" className="absolute left-1/2 top-full -translate-x-1/2 border-x-[7px] border-t-[7px] border-x-transparent border-t-secondary" />
+                      </div>
+                    ) : null}
+                    <button type="submit" disabled={!open || busy || total === 0}
+                      className="flex w-full items-center justify-between rounded-[6px] bg-primary px-5 py-4 font-mono text-[16px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
+                      <span>{busy ? "opening payment…" : open ? "checkout" : soldOut ? "sold out" : "preorders closed"}</span>
+                      <span className="flex items-baseline gap-2">
+                        {discountPct && total > 0 ? <s className="opacity-60" aria-label={`was ${money(total)}`}>{money(total)}</s> : null}
+                        <span>{money(payTotal)}</span>
+                      </span>
+                    </button>
+                  </div>
                 </form>
               )}
             </div>
@@ -347,8 +381,8 @@ export default function OrderMenu() {
             <X className="h-4 w-4" />
           </button>
           <div className="mx-auto w-full max-w-[760px]">
-            <img src={itemImage(sel.name).src} alt={sel.name}
-              className={cn("aspect-[3/2] w-full", itemImage(sel.name).cutout ? "bg-secondary/60 object-contain p-6" : "object-cover")} />
+            <img src={itemImage(sel.name, sel.image_url).src} alt={sel.name}
+              className={cn("aspect-[3/2] w-full", itemImage(sel.name, sel.image_url).cutout ? "bg-secondary/60 object-contain p-6" : "object-cover")} />
             <div className="px-6 py-8">
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
               <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
@@ -381,6 +415,118 @@ export default function OrderMenu() {
           )}
         </div>
       )}
+    </section>
+  );
+}
+
+function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmation; orderRef: OrderRef | null; menu: Item[]; reduceMotion: boolean }) {
+  const name = c.customer_name.trim();
+  // Decided once so the checkbox stays put (and can be unticked) after opting in here.
+  const [offerSms] = useState(!c.sms_opt_in && !!orderRef);
+  const [smsOptIn, setSmsOptIn] = useState(c.sms_opt_in);
+  const [smsError, setSmsError] = useState("");
+  const updateSms = async (next: boolean) => {
+    if (!orderRef) return;
+    setSmsOptIn(next);
+    setSmsError("");
+    const { error } = await supabase.functions.invoke("confirm-order", {
+      body: { ...orderRef, action: "sms_opt_in", sms_opt_in: next },
+    });
+    if (error) {
+      setSmsOptIn(!next);
+      setSmsError("couldn't save that, please try again.");
+    }
+  };
+  const where = c.pickup_address ?? c.pickup?.pickup_location;
+  const label = "font-display text-[20px] font-black tracking-brand text-primary";
+  return (
+    <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+        className="mx-auto max-w-[640px] px-6 md:px-10"
+      >
+        <div className="flex flex-col items-center text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <h2 className="mt-6 font-display text-4xl font-black tracking-brand text-primary md:text-6xl">
+            you're in{name ? ` ${name}` : ""}.
+          </h2>
+          <p className="mt-3 font-mono text-[17px] text-primary/75">thank you for your order.</p>
+        </div>
+
+        <div className="mt-10 rounded-[6px] bg-secondary p-5 md:mt-12 md:p-6">
+          <p className={label}>pickup details</p>
+          <ul className="mt-4 space-y-2 font-mono text-[15px] text-primary">
+            {c.pickup && (
+              <li className="flex items-start gap-3">
+                <Calendar className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{pickupWhen(c.pickup)}</span>
+              </li>
+            )}
+            {where && (
+              <li className="flex items-start gap-3">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className={c.pickup_address ? "normal-case" : undefined}>{where}</span>
+              </li>
+            )}
+          </ul>
+        </div>
+
+        {offerSms && (
+          <div className="mt-5 px-1">
+            <label htmlFor="confirm-sms-opt-in" className="flex cursor-pointer items-center gap-3 font-mono text-[15px] text-primary">
+              <Checkbox id="confirm-sms-opt-in" checked={smsOptIn}
+                onCheckedChange={(v) => updateSms(v === true)}
+                aria-describedby="confirm-sms-terms"
+                className="h-5 w-5 rounded-[4px]" />
+              receive order and pickup updates
+            </label>
+            <p id="confirm-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
+            {smsError && <p role="alert" className="mt-1.5 pl-8 font-mono text-[12px] text-destructive">{smsError}</p>}
+          </div>
+        )}
+
+        <div className="mt-5 rounded-[6px] border border-primary/15 p-5 md:p-6">
+          <p className={label}>your order</p>
+          <ul className="mt-4 divide-y divide-primary/10">
+            {c.items.map((i) => {
+              const img = itemImage(i.name, menu.find((m) => m.name === i.name)?.image_url);
+              return (
+                <li key={i.name} className="flex items-center gap-4 py-3 first:pt-0">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-secondary">
+                    <img src={img.src} alt="" loading="lazy"
+                      className={img.cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-[17px] font-black tracking-brand text-primary">{i.name}</p>
+                    <p className="font-mono text-[13px] text-primary/60">{i.qty} × {money(i.price_cents)}</p>
+                  </div>
+                  <span className="font-mono text-[15px] text-primary">{money(i.qty * i.price_cents)}</span>
+                </li>
+              );
+            })}
+          </ul>
+          {c.discount_percent && c.subtotal_cents ? (
+            <div className="mt-2 space-y-1 border-t border-primary/15 pt-4 font-mono text-[15px] text-primary/75">
+              <div className="flex justify-between"><span>subtotal</span><span>{money(c.subtotal_cents)}</span></div>
+              <div className="flex justify-between"><span>{c.discount_percent}% discount</span><span>−{money(c.subtotal_cents - c.total_cents)}</span></div>
+            </div>
+          ) : null}
+          <div className="mt-2 flex items-center justify-between border-t border-primary/15 pt-4 font-display text-xl font-black tracking-brand text-primary">
+            <span>total</span>
+            <span>{money(c.total_cents)}</span>
+          </div>
+        </div>
+
+        <div className="mt-10 text-center">
+          <a href="/" className="font-mono text-[15px] text-primary underline decoration-primary/30 underline-offset-4 hover:decoration-primary">
+            back to home
+          </a>
+        </div>
+      </motion.div>
     </section>
   );
 }

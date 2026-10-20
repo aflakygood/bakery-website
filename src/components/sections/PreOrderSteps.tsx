@@ -5,25 +5,25 @@ const steps = [
     n: "01",
     title: "weekly drop.",
     lines: [
-      "drops typically happen every week.",
-      "pre-orders open a few days prior to the pick-up date.",
-      "upcoming bake dates are announced on Instagram.",
+      "a new menu drops every week.",
+      "preorders open a few days before pickup.",
+      "drop dates are posted on Instagram.",
     ],
   },
   {
     n: "02",
     title: "place your order.",
     lines: [
-      "when preorders open, directly order from our menu",
-      "preorders spots are limited.",
+      "order online once preorders open.",
+      "spots are limited, so order early.",
     ],
   },
   {
     n: "03",
     title: "pickup in Maple Valley.",
     lines: [
-      "every bake is prepared fresh for pickup day.",
-      "confirmation and pickup details are provided via message once your order is in.",
+      "everything is baked fresh for pickup.",
+      "pickup details shown after checkout.",
     ],
   },
 ];
@@ -32,9 +32,9 @@ export default function PreOrderSteps() {
   return (
     <section id="preorder" className="relative bg-secondary pb-20 pt-10 md:pb-32 md:pt-14">
       <div className="mx-auto max-w-[1100px] px-6 md:px-10">
-        <div className="text-center">
+        <div className="pt-[30px] text-center">
           <h2 className="font-display text-4xl font-black tracking-brand text-primary md:text-6xl">
-            how to pre-order.
+            how to preorder.
           </h2>
         </div>
 
@@ -51,7 +51,7 @@ export default function PreOrderSteps() {
               <h3 className="font-display text-2xl font-black tracking-brand text-primary md:text-[28px]">
                 {s.title}
               </h3>
-              <div className="mt-2 space-y-1 font-mono text-[13px] leading-snug text-primary/75">
+              <div className="mt-2 space-y-1 font-mono text-[15px] leading-snug text-primary/75">
                 {s.lines.map((l, k) => <p key={k}>{l}</p>)}
               </div>
             </motion.div>

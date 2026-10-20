@@ -1,6 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
+import { discountCents, findDiscount } from "../_shared/discount.ts";
 
 const US_PHONE = /^[2-9]\d{2}[2-9]\d{6}$/;
 
@@ -27,12 +28,19 @@ Deno.serve(async (req) => {
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: drop } = await db.from("drops").select("*").eq("id", input.drop_id).maybeSingle();
-    if (!drop || !drop.is_open) return json({ error: "Pre-orders are closed for this drop." }, 400);
+    const now = Date.now();
+    const live = !!drop && drop.is_open && !!drop.opens_at && Date.parse(drop.opens_at) <= now
+      && (!drop.closes_at || Date.parse(drop.closes_at) > now);
+    if (!live) return json({ error: "Preorders are closed for this drop." }, 400);
+
+    // Merge repeated lines so per-order limits and stock checks can't be bypassed.
+    const wanted = new Map<string, number>();
+    for (const { item_id, qty } of input.items) wanted.set(item_id, (wanted.get(item_id) ?? 0) + qty);
 
     const { data: dbItems } = await db.from("drop_items").select("*").eq("drop_id", drop.id);
     const lines: { item_id: string; name: string; qty: number; price_cents: number }[] = [];
     let total = 0;
-    for (const { item_id, qty } of input.items) {
+    for (const [item_id, qty] of wanted) {
       const it = dbItems?.find((d) => d.id === item_id);
       if (!it) return json({ error: "An item is no longer available." }, 400);
       if (qty > it.max_per_order) return json({ error: `Max ${it.max_per_order} ${it.name} per order.` }, 400);
@@ -42,9 +50,15 @@ Deno.serve(async (req) => {
       total += qty * it.price_cents;
     }
 
+    const subtotal = total;
+    const discount = await findDiscount(db, input.customer_name);
+    if (discount) total = subtotal - discountCents(subtotal, discount.percent);
+    const customerName = discount?.cleanName || input.customer_name;
+
     const { data: order, error: oErr } = await db.from("orders").insert({
-      drop_id: drop.id, customer_name: input.customer_name, email: "", phone: input.phone, sms_opt_in: input.sms_opt_in,
-      items: lines, total_cents: total, status: "pending",
+      drop_id: drop.id, customer_name: customerName, email: "", phone: input.phone, sms_opt_in: input.sms_opt_in,
+      items: lines, total_cents: total, subtotal_cents: subtotal, status: "pending",
+      discount_code: discount?.code ?? null, discount_percent: discount?.percent ?? null,
     }).select("id").single();
     if (oErr) throw oErr;
 

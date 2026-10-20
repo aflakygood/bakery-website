@@ -1,5 +1,5 @@
 import logoIcon from "@/assets/logo-icon.png";
-import { Instagram, ArrowUpRight } from "lucide-react";
+import { Instagram } from "lucide-react";
 
 export default function Footer({ showContact = false }: { showContact?: boolean }) {
   return (
@@ -14,25 +14,21 @@ export default function Footer({ showContact = false }: { showContact?: boolean 
                 drop a dm.
               </h2>
               <p className="mt-6 max-w-md font-mono text-[15px] leading-relaxed tracking-brand text-primary/70">
-                pre-orders, weekly drops, and pickup details — all live on instagram.
+                preorders, weekly drops, and pickup details — all live on instagram.
               </p>
               <a
                 href="https://www.instagram.com/aflakygood/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-8 inline-flex items-center gap-4 border border-primary/30 px-5 py-4 font-mono text-sm tracking-brand text-primary transition-colors hover:bg-secondary"
+                className="mt-8 inline-flex items-center gap-4 rounded-[6px] bg-secondary px-5 py-4 font-mono text-sm tracking-brand text-primary transition-colors hover:bg-accent"
               >
                 <Instagram className="h-5 w-5" />
                 @aflakygood
-                <ArrowUpRight className="h-4 w-4" />
               </a>
             </div>
           )}
           <div className={`flex flex-col items-center justify-between gap-4 md:flex-row ${showContact ? "pt-6" : ""}`}>
-            <div className="flex items-center gap-3">
-              <img src={logoIcon} alt="a flaky good." className="h-9 w-9" />
-              <span className="font-display text-sm font-black tracking-brand text-primary">a flaky good.</span>
-            </div>
+            <img src={logoIcon} alt="a flaky good." className="h-9 w-9" />
             <p className="font-mono text-[10px] lowercase tracking-brand text-primary/55">
               © {new Date().getFullYear()} a flaky good. — Maple Valley, WA
             </p>

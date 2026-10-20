@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import image20260427 from "@/assets/gallery/20260427_201323.jpg";
 import image20260516 from "@/assets/gallery/20260516_145815.jpg";
@@ -39,24 +39,64 @@ const pillars = [
   { t: "small batch baking.", d: "Baked to order and in small batches to focus on freshness, consistency, and quality." },
 ];
 
+const AUTO_SCROLL_MS = 2000;
+const RESUME_AFTER_INTERACTION_MS = 5000;
+// Rendered twice so auto-scroll can loop seamlessly: once a full set has
+// scrolled past, we jump back by exactly one set width (visually identical).
+const loopGallery = [...gallery, ...gallery];
+
+const figures = (el: HTMLElement) => Array.from(el.querySelectorAll<HTMLElement>(":scope > figure"));
+const setWidth = (kids: HTMLElement[]) => kids[gallery.length].offsetLeft - kids[0].offsetLeft;
+const centerOf = (el: HTMLElement, k: HTMLElement) => k.offsetLeft + k.offsetWidth / 2 - el.clientWidth / 2;
+const nearestIndex = (el: HTMLElement, kids: HTMLElement[]) => {
+  let best = 0, d = Infinity;
+  kids.forEach((k, i) => { const m = Math.abs(centerOf(el, k) - el.scrollLeft); if (m < d) { d = m; best = i; } });
+  return best;
+};
+// Jump (invisibly) between the two identical sets so there's always room to scroll in `dir`.
+const wrap = (el: HTMLElement, kids: HTMLElement[], dir: 1 | -1, amount: number) => {
+  const span = setWidth(kids);
+  if (dir === 1 && el.scrollLeft >= span) el.scrollTo({ left: el.scrollLeft - span, behavior: "instant" });
+  else if (dir === -1 && el.scrollLeft < amount) el.scrollTo({ left: el.scrollLeft + span, behavior: "instant" });
+};
+
 export default function About() {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const reduceMotion = useReducedMotion();
+  const hovering = useRef(false);
+  const inView = useRef(false);
+  const resumeAt = useRef(0);
+  const pauseForInteraction = () => { resumeAt.current = Date.now() + RESUME_AFTER_INTERACTION_MS; };
+
   const onScroll = () => {
     const el = scrollerRef.current;
     if (!el) return;
-    const kids = Array.from(el.children).slice(0, gallery.length) as HTMLElement[];
-    const c = el.scrollLeft + el.clientWidth / 2;
-    let best = 0, d = Infinity;
-    kids.forEach((k, i) => { const m = Math.abs(k.offsetLeft + k.offsetWidth / 2 - c); if (m < d) { d = m; best = i; } });
-    setActive(best);
+    setActive(nearestIndex(el, figures(el)) % gallery.length);
   };
   const scrollBy = (dir: 1 | -1) => {
     const el = scrollerRef.current;
     if (!el) return;
+    pauseForInteraction();
     const amount = Math.max(el.clientWidth * 0.8, 260);
+    wrap(el, figures(el), dir, amount);
     el.scrollBy({ left: dir * amount, behavior: "smooth" });
   };
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || reduceMotion) return;
+    const io = new IntersectionObserver(([e]) => { inView.current = e.isIntersecting; });
+    io.observe(el);
+    const id = window.setInterval(() => {
+      if (hovering.current || !inView.current || document.hidden || Date.now() < resumeAt.current) return;
+      const kids = figures(el);
+      wrap(el, kids, 1, 0);
+      const next = kids[nearestIndex(el, kids) + 1];
+      if (next) el.scrollTo({ left: centerOf(el, next), behavior: "smooth" });
+    }, AUTO_SCROLL_MS);
+    return () => { window.clearInterval(id); io.disconnect(); };
+  }, [reduceMotion]);
   return (
     <section id="about" className="relative pb-20 pt-[50px] md:pb-32 md:pt-[98px]">
       <div className="mx-auto max-w-[1200px] px-6 md:px-10">
@@ -65,9 +105,9 @@ export default function About() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="mx-auto max-w-3xl text-center"
+          className="mx-auto max-w-3xl py-[100px] text-center"
         >
-          <p className="mt-6 font-mono text-[17px] leading-relaxed tracking-brand text-primary md:text-[20px]">
+          <p className="mt-6 font-mono text-[20px] leading-relaxed tracking-brand text-primary md:text-[23px]">
             a flaky good is a home microbakery in maple valley - washington, built around small batch laminated pastries, long-ferment sourdough breads, and seasonal bakes — made with warmth, intention, and a lot of obsession.
           </p>
         </motion.div>
@@ -93,16 +133,27 @@ export default function About() {
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
-        <div ref={scrollerRef} onScroll={onScroll} className="touch-pan-x touch-pan-y no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-6 pb-2 md:gap-6 md:px-10" style={{ scrollSnapType: "x mandatory" }}>
-          {gallery.map((g, i) => (
+        <div
+          ref={scrollerRef}
+          onScroll={onScroll}
+          onPointerEnter={(e) => { if (e.pointerType === "mouse") hovering.current = true; }}
+          onPointerLeave={() => { hovering.current = false; }}
+          onPointerDown={pauseForInteraction}
+          onTouchStart={pauseForInteraction}
+          onWheel={pauseForInteraction}
+          className="relative touch-pan-x touch-pan-y no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-6 pb-2 md:gap-6 md:px-10"
+          style={{ scrollSnapType: "x mandatory" }}
+        >
+          {loopGallery.map((g, i) => (
             <motion.figure
               key={i}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
-              transition={{ duration: 0.7, delay: i * 0.05 }}
+              transition={{ duration: 0.7, delay: (i % gallery.length) * 0.05 }}
               className="shrink-0"
               style={{ scrollSnapAlign: "center" }}
+              aria-hidden={i >= gallery.length || undefined}
             >
               <img
                 src={g.src}
@@ -121,7 +172,7 @@ export default function About() {
         </div>
       </div>
 
-      <div className="mx-auto mt-16 max-w-[1100px] px-6 md:mt-[89.6px] md:px-10">
+      <div className="mx-auto mt-16 max-w-[1100px] px-6 py-[25px] md:mt-[89.6px] md:px-10">
         <div className="grid gap-8 md:grid-cols-3 md:gap-x-10">
           {pillars.map((p, i) => (
             <motion.div
@@ -130,10 +181,10 @@ export default function About() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.7, delay: i * 0.08 }}
-              className="border-t border-primary/15 pt-5 first:border-t-0"
+              className="border-t border-primary/15 pt-5 first:border-t-0 md:first:border-t"
             >
-              <h3 className="font-display text-lg font-black tracking-brand text-primary md:text-xl">{p.t}</h3>
-              <p className="mt-2 font-mono text-[15px] leading-relaxed text-primary/75 md:text-[16px]">{p.d}</p>
+              <h3 className="font-display text-[20px] font-black tracking-brand text-primary md:text-[22px]">{p.t}</h3>
+              <p className="mt-2 font-mono text-[17px] leading-normal text-primary/75 md:text-[18px]">{p.d}</p>
             </motion.div>
           ))}
         </div>
