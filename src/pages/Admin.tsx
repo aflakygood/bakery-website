@@ -2,10 +2,21 @@ import { Fragment, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
+import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 
 type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; created_at: string };
 type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number };
-type Drop = PickupFields & { id: string; title: string; is_open: boolean };
+type Drop = PickupFields & DropSchedule & { id: string; title: string };
+
+// <input type="datetime-local"> works in the admin's local time; the database stores UTC.
+const pad = (n: number) => String(n).padStart(2, "0");
+const toLocalInput = (iso: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const fromLocalInput = (value: string) => (value ? new Date(value).toISOString() : null);
+const phaseLabel = { upcoming: "not live yet", open: "taking preorders", ended: "ended (shows sold out)", closed: "closed early" } as const;
 
 export default function Admin() {
   const [session, setSession] = useState<Session | null>(null);
@@ -13,6 +24,7 @@ export default function Admin() {
   const [drop, setDrop] = useState<Drop | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const now = useNow();
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -52,6 +64,12 @@ export default function Admin() {
   };
   const saveItem = async (id: string, patch: Partial<Item>) => {
     await supabase.from("drop_items").update(patch).eq("id", id);
+    void load();
+  };
+  const startNextDrop = async () => {
+    if (!window.confirm("start the next drop?\n\nthis ends the current drop now. the new drop copies the items and prices with 0 quantity, and stays hidden until you set its open time.")) return;
+    const { error } = await supabase.rpc("start_next_drop");
+    if (error) return window.alert(`couldn't start the next drop: ${error.message}`);
     void load();
   };
   const markPicked = async (id: string) => {
@@ -101,10 +119,29 @@ export default function Admin() {
         {drop && (
           <section className={box}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-2xl font-black tracking-brand text-primary">this drop.</h2>
-              <button onClick={() => void saveDrop({ is_open: !drop.is_open })} className="rounded-sm bg-primary px-4 py-2 font-mono text-[12px] text-primary-foreground">
-                {drop.is_open ? "close preorders" : "open preorders"}
-              </button>
+              <div>
+                <h2 className="font-display text-2xl font-black tracking-brand text-primary">this drop.</h2>
+                <p className="font-mono text-[12px] text-primary/70">status: {phaseLabel[dropPhase(drop, now)]}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => void saveDrop({ is_open: !drop.is_open })} className="rounded-sm border border-primary px-4 py-2 font-mono text-[12px] text-primary">
+                  {drop.is_open ? "close now" : "reopen"}
+                </button>
+                <button onClick={() => void startNextDrop()} className="rounded-sm bg-primary px-4 py-2 font-mono text-[12px] text-primary-foreground">
+                  start next drop
+                </button>
+              </div>
+            </div>
+            <p className="mt-4 font-mono text-[11px] text-primary/60">preorder window (your local time). the drop is hidden before it opens and shows sold out after it closes.</p>
+            <div className="mt-1 grid gap-3 sm:grid-cols-2">
+              <label className="font-mono text-[11px] text-primary/60">opens
+                <input type="datetime-local" className={field} defaultValue={toLocalInput(drop.opens_at)} key={`o-${drop.id}-${drop.opens_at}`}
+                  onBlur={(event) => event.target.value !== toLocalInput(drop.opens_at) && void saveDrop({ opens_at: fromLocalInput(event.target.value) })} />
+              </label>
+              <label className="font-mono text-[11px] text-primary/60">closes
+                <input type="datetime-local" className={field} defaultValue={toLocalInput(drop.closes_at)} key={`c-${drop.id}-${drop.closes_at}`}
+                  onBlur={(event) => event.target.value !== toLocalInput(drop.closes_at) && void saveDrop({ closes_at: fromLocalInput(event.target.value) })} />
+              </label>
             </div>
             <p className="mt-4 font-mono text-[11px] text-primary/60">pickup details shown to customers</p>
             <div className="mt-1 grid gap-3 sm:grid-cols-3">

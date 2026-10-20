@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
+import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import focacciaFallback from "@/assets/gallery/IMGC0090_Original.jpg";
@@ -31,7 +32,7 @@ const mushroomAsset = productPhoto("mushroom-focaccia", mushroomFallback);
 const sourdoughAsset = productPhoto("sourdough", sourdoughFallback);
 
 type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number };
-type DropRow = PickupFields & { id: string; title: string; is_open: boolean };
+type DropRow = PickupFields & DropSchedule & { id: string; title: string };
 type Confirmation = {
   customer_name: string;
   items: { name: string; qty: number; price_cents: number }[];
@@ -106,6 +107,8 @@ const cleanPhone = (raw: string, prev: string) => {
 export default function OrderMenu() {
   const reduceMotion = useReducedMotion();
   const [drop, setDrop] = useState<DropRow | null>(null);
+  const [loaded, setLoaded] = useState(!isSupabaseConfigured);
+  const now = useNow();
   const [items, setItems] = useState<Item[]>([]);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [form, setForm] = useState({ customer_name: "", phone: "", sms_opt_in: false });
@@ -118,7 +121,7 @@ export default function OrderMenu() {
   const load = async () => {
     if (!isSupabaseConfigured) return;
     const { data: d } = await supabase.from("drops").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!d) return;
+    if (!d) { setLoaded(true); return; }
     setDrop(d);
     const { data: its } = await supabase.from("drop_items").select("*").eq("drop_id", d.id).order("sort");
     const withRemaining = await Promise.all(
@@ -128,11 +131,13 @@ export default function OrderMenu() {
       }),
     );
     setItems(withRemaining);
+    setLoaded(true);
   };
   useEffect(() => { load(); }, []);
 
-  const soldOut = items.length > 0 && items.every((i) => i.remaining === 0);
-  const open = !!drop?.is_open && !soldOut;
+  const phase = drop ? dropPhase(drop, now) : "upcoming";
+  const soldOut = phase === "ended" || (items.length > 0 && items.every((i) => i.remaining === 0));
+  const open = phase === "open" && !soldOut;
   const total = useMemo(() => items.reduce((s, i) => s + (qty[i.id] ?? 0) * i.price_cents, 0), [items, qty]);
 
   // Secret codes in brackets in the name, e.g. "Ayush (friends)". The server re-checks at checkout.
@@ -244,6 +249,23 @@ export default function OrderMenu() {
   const input = "w-full rounded-[6px] border border-primary/15 bg-background px-4 py-3 font-mono text-[15px] text-primary placeholder:text-primary/40 focus:outline-none focus:border-primary/50";
 
   if (confirmation) return <OrderConfirmation c={confirmation} orderRef={orderRef} reduceMotion={!!reduceMotion} />;
+
+  if (isSupabaseConfigured && (!loaded || phase === "upcoming")) return (
+    <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
+      <div className="mx-auto flex min-h-[45vh] max-w-[640px] flex-col items-center justify-center px-6 text-center md:px-10">
+        {loaded && (
+          <>
+            <h2 className="font-display text-4xl font-black tracking-brand text-primary md:text-6xl">next drop coming soon.</h2>
+            <p className="mt-4 font-mono text-[17px] text-primary/75">new menus are posted on instagram first.</p>
+            <a href="https://www.instagram.com/aflakygood/" target="_blank" rel="noopener noreferrer"
+              className="mt-8 rounded-[6px] bg-primary px-6 py-3.5 font-mono text-[16px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">
+              follow @aflakygood
+            </a>
+          </>
+        )}
+      </div>
+    </section>
+  );
 
   return (
     <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">

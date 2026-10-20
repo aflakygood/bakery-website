@@ -3,17 +3,24 @@ import { Link } from "react-router-dom";
 import { Calendar, MapPin, ArrowRight } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
+import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import cover from "@/assets/gallery/20260427_201323.jpg";
 
-type DropRow = PickupFields & { id: string; title: string; is_open: boolean };
+type DropRow = PickupFields & DropSchedule & { id: string; title: string };
 
 export default function Drop() {
   const [drop, setDrop] = useState<DropRow | null>(null);
+  const [loaded, setLoaded] = useState(!isSupabaseConfigured);
+  const now = useNow();
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     supabase.from("drops").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle()
-      .then(({ data }) => setDrop(data));
+      .then(({ data }) => { setDrop(data); setLoaded(true); });
   }, []);
+
+  // Hidden until the drop's scheduled start; after it ends the card stays up as sold out.
+  const phase = drop ? dropPhase(drop, now) : isSupabaseConfigured ? "upcoming" : "open";
+  if (!loaded || phase === "upcoming") return null;
 
   return (
     <section id="order" className="relative pb-[80px] pt-[80px] md:pb-[128px] md:pt-[96px]">
@@ -33,10 +40,17 @@ export default function Drop() {
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{drop?.pickup_location || "near summit park, maple valley"}</span>
             </p>
-            <Link to="/preorder"
-              className="mt-7 flex items-center justify-center gap-2 rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">
-              preorder <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+            {phase === "open" ? (
+              <Link to="/preorder"
+                className="mt-7 flex items-center justify-center gap-2 rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">
+                preorder <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            ) : (
+              <p aria-disabled="true"
+                className="mt-7 flex items-center justify-center rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground opacity-50">
+                {phase === "ended" ? "sold out" : "preorders closed"}
+              </p>
+            )}
           </div>
         </article>
       </div>
