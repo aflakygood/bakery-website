@@ -8,6 +8,7 @@ import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
+import SmsDisclosure from "@/components/SmsDisclosure";
 import { itemImage } from "@/lib/itemImage";
 
 type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number; image_url: string | null };
@@ -345,7 +346,7 @@ export default function OrderMenu() {
                             className="h-5 w-5 rounded-[4px]" />
                           receive order and pickup updates
                         </label>
-                        <p id="checkout-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
+                        <SmsDisclosure id="checkout-sms-terms" className="mt-1 pl-8" />
                       </div>
                     </div>
                   )}
@@ -484,7 +485,7 @@ function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmatio
                 className="h-5 w-5 rounded-[4px]" />
               receive order and pickup updates
             </label>
-            <p id="confirm-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
+            <SmsDisclosure id="confirm-sms-terms" className="mt-1 pl-8" />
             {smsError && <p role="alert" className="mt-1.5 pl-8 font-mono text-[12px] text-destructive">{smsError}</p>}
           </div>
         )}
