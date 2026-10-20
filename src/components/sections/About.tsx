@@ -172,7 +172,7 @@ export default function About() {
         </div>
       </div>
 
-      <div className="mx-auto mt-16 max-w-[1100px] px-6 md:mt-[89.6px] md:px-10">
+      <div className="mx-auto mt-16 max-w-[1100px] px-6 py-[25px] md:mt-[89.6px] md:px-10">
         <div className="grid gap-8 md:grid-cols-3 md:gap-x-10">
           {pillars.map((p, i) => (
             <motion.div
