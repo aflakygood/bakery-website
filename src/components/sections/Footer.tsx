@@ -29,10 +29,7 @@ export default function Footer({ showContact = false }: { showContact?: boolean 
             </div>
           )}
           <div className={`flex flex-col items-center justify-between gap-4 md:flex-row ${showContact ? "pt-6" : ""}`}>
-            <div className="flex items-center gap-3">
-              <img src={logoIcon} alt="a flaky good." className="h-9 w-9" />
-              <span className="font-display text-sm font-black tracking-brand text-primary">a flaky good.</span>
-            </div>
+            <img src={logoIcon} alt="a flaky good." className="h-9 w-9" />
             <p className="font-mono text-[10px] lowercase tracking-brand text-primary/55">
               © {new Date().getFullYear()} a flaky good. — Maple Valley, WA
             </p>
