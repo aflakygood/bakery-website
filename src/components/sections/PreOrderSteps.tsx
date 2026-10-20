@@ -5,25 +5,25 @@ const steps = [
     n: "01",
     title: "weekly drop.",
     lines: [
-      "drops typically happen every week.",
-      "preorders open a few days prior to the pick-up date.",
-      "upcoming bake dates are announced on Instagram.",
+      "a new menu drops every week.",
+      "preorders open a few days before pickup.",
+      "drop dates are posted on Instagram.",
     ],
   },
   {
     n: "02",
     title: "place your order.",
     lines: [
-      "when preorders open, directly order from our menu",
-      "preorders spots are limited.",
+      "order online once preorders open.",
+      "spots are limited, so order early.",
     ],
   },
   {
     n: "03",
     title: "pickup in Maple Valley.",
     lines: [
-      "every bake is prepared fresh for pickup day.",
-      "confirmation and pickup details are provided via message once your order is in.",
+      "everything is baked fresh for pickup.",
+      "pickup details shown after checkout.",
     ],
   },
 ];
