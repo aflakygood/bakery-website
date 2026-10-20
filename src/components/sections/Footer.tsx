@@ -1,5 +1,5 @@
 import logoIcon from "@/assets/logo-icon.png";
-import { Instagram, ArrowUpRight } from "lucide-react";
+import { Instagram } from "lucide-react";
 
 export default function Footer({ showContact = false }: { showContact?: boolean }) {
   return (
@@ -20,11 +20,10 @@ export default function Footer({ showContact = false }: { showContact?: boolean 
                 href="https://www.instagram.com/aflakygood/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-8 inline-flex items-center gap-4 border border-primary/30 px-5 py-4 font-mono text-sm tracking-brand text-primary transition-colors hover:bg-secondary"
+                className="mt-8 inline-flex items-center gap-4 rounded-[6px] bg-secondary px-5 py-4 font-mono text-sm tracking-brand text-primary transition-colors hover:bg-accent"
               >
                 <Instagram className="h-5 w-5" />
                 @aflakygood
-                <ArrowUpRight className="h-4 w-4" />
               </a>
             </div>
           )}
