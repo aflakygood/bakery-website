@@ -184,7 +184,7 @@ export default function About() {
               className="border-t border-primary/15 pt-5 first:border-t-0 md:first:border-t"
             >
               <h3 className="font-display text-[20px] font-black tracking-brand text-primary md:text-[22px]">{p.t}</h3>
-              <p className="mt-2 font-mono text-[17px] leading-relaxed text-primary/75 md:text-[18px]">{p.d}</p>
+              <p className="mt-2 font-mono text-[17px] leading-normal text-primary/75 md:text-[18px]">{p.d}</p>
             </motion.div>
           ))}
         </div>
