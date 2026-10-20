@@ -300,7 +300,7 @@ export default function OrderMenu() {
                   </ul>
 
                   {open && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 pt-5">
                       <input required maxLength={100} placeholder="name (required)" className={input} value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
                       <div>
                         <input id="checkout-phone" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="phone number (required)"
