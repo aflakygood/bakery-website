@@ -6,7 +6,7 @@ const steps = [
     title: "weekly drop.",
     lines: [
       "drops typically happen every week.",
-      "pre-orders open a few days prior to the pick-up date.",
+      "preorders open a few days prior to the pick-up date.",
       "upcoming bake dates are announced on Instagram.",
     ],
   },
@@ -34,7 +34,7 @@ export default function PreOrderSteps() {
       <div className="mx-auto max-w-[1100px] px-6 md:px-10">
         <div className="text-center">
           <h2 className="font-display text-4xl font-black tracking-brand text-primary md:text-6xl">
-            how to pre-order.
+            how to preorder.
           </h2>
         </div>
 
@@ -51,7 +51,7 @@ export default function PreOrderSteps() {
               <h3 className="font-display text-2xl font-black tracking-brand text-primary md:text-[28px]">
                 {s.title}
               </h3>
-              <div className="mt-2 space-y-1 font-mono text-[13px] leading-snug text-primary/75">
+              <div className="mt-2 space-y-1 font-mono text-[15px] leading-snug text-primary/75">
                 {s.lines.map((l, k) => <p key={k}>{l}</p>)}
               </div>
             </motion.div>
