@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
       return json({ error: message }, 400);
     }
     const input = parsed.data;
-    if (input.sms_opt_in && !input.phone) return json({ error: "Add your phone number to get text updates." }, 400);
+    if (input.sms_opt_in && !input.phone) return json({ error: "Enter phone number to receive order and pickup updates." }, 400);
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: drop } = await db.from("drops").select("*").eq("id", input.drop_id).maybeSingle();
@@ -42,7 +42,11 @@ Deno.serve(async (req) => {
     for (const { item_id, qty } of input.items) wanted.set(item_id, (wanted.get(item_id) ?? 0) + qty);
 
     const { data: dbItems } = await db.from("drop_items").select("*").eq("drop_id", drop.id);
+    const { data: groups } = await db.from("item_groups").select("id, name").eq("drop_id", drop.id);
     const lines: { item_id: string; name: string; qty: number; price_cents: number }[] = [];
+    // Items in a group share its spots, so the combined quantity per group must fit too.
+    const groupWanted = new Map<string, { qty: number; remaining: number }>();
+    const remainingOf = new Map<string, number>();
     let total = 0;
     for (const [item_id, qty] of wanted) {
       const it = dbItems?.find((d) => d.id === item_id);
@@ -50,8 +54,28 @@ Deno.serve(async (req) => {
       if (qty > it.max_per_order) return json({ error: `Max ${it.max_per_order} ${it.name} per order.` }, 400);
       const { data: remaining } = await db.rpc("item_remaining", { _item_id: item_id });
       if ((remaining ?? 0) < qty) return json({ error: `Only ${Math.max(0, remaining ?? 0)} ${it.name} left.` }, 409);
+      remainingOf.set(item_id, remaining ?? 0);
+      if (it.group_id) {
+        const g = groupWanted.get(it.group_id) ?? { qty: 0, remaining: remaining ?? 0 };
+        groupWanted.set(it.group_id, { ...g, qty: g.qty + qty });
+      }
       lines.push({ item_id, name: it.name, qty, price_cents: it.price_cents });
       total += qty * it.price_cents;
+    }
+    for (const [group_id, g] of groupWanted) {
+      if (g.qty > g.remaining) {
+        const name = groups?.find((x) => x.id === group_id)?.name ?? "that item";
+        return json({ error: `Only ${Math.max(0, g.remaining)} ${name} left in total.` }, 409);
+      }
+    }
+    // Below the minimum is fine only when it takes everything left (after other items sharing the group).
+    for (const line of lines) {
+      const it = dbItems!.find((d) => d.id === line.item_id)!;
+      const min = it.min_per_order ?? 1;
+      if (line.qty >= min) continue;
+      const g = it.group_id ? groupWanted.get(it.group_id) : undefined;
+      const available = g ? g.remaining - (g.qty - line.qty) : remainingOf.get(line.item_id) ?? 0;
+      if (line.qty < available) return json({ error: `Min ${min} ${it.name} per order.` }, 400);
     }
 
     const subtotal = total;

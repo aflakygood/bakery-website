@@ -12,7 +12,7 @@ import SmsDisclosure from "@/components/SmsDisclosure";
 import { itemImage } from "@/lib/itemImage";
 import { EMAIL_RE, US_PHONE_RE } from "@/lib/contact";
 
-type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number; image_url: string | null };
+type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; min_per_order: number; max_per_order: number; remaining: number; image_url: string | null; group_id: string | null };
 type DropRow = PickupFields & DropSchedule & { id: string; title: string };
 type Confirmation = {
   customer_name: string;
@@ -63,7 +63,7 @@ const emailError = (email: string) => {
 };
 const PHONE_HINT = "e.g. 4255550123";
 const phoneError = (phone: string, required = false) => {
-  if (!phone) return required ? `Add your phone number to get text updates — 10 digits, numbers only (${PHONE_HINT}).` : "";
+  if (!phone) return required ? "Enter phone number to receive order and pickup updates." : "";
   if (phone.length < 10) return `Phone number must be exactly 10 digits — you've entered ${phone.length} (${PHONE_HINT}).`;
   if (!US_PHONE_RE.test(phone)) return `Enter a valid US phone number — the area code and the next 3 digits can't start with 0 or 1 (${PHONE_HINT}).`;
   return "";
@@ -133,12 +133,23 @@ export default function OrderMenu() {
   }, [form.customer_name]);
   const payTotal = discountPct ? total - Math.round((total * discountPct) / 100) : total;
 
+  // Grouped items share spots, so other cart items in the same group use up this item's availability.
+  const avail = (i: Item) =>
+    Math.max(0, i.remaining - (i.group_id ? items.reduce((s, o) => s + (o.id !== i.id && o.group_id === i.group_id ? qty[o.id] ?? 0 : 0), 0) : 0));
+
+  // Some items have a minimum per order, waived when fewer than that are left.
+  const minFor = (i: Item) => Math.max(1, Math.min(i.min_per_order ?? 1, avail(i)));
+  const belowMin = (i: Item, n: number) => n > 0 && n < minFor(i);
+
   const [limitMsg, setLimitMsg] = useState<Record<string, string>>({});
   const change = (i: Item, d: number) => {
     const cur = qty[i.id] ?? 0;
-    const next = cur + d;
-    if (d > 0 && next > Math.min(i.max_per_order, i.remaining)) {
-      setLimitMsg((m) => ({ ...m, [i.id]: next > i.remaining ? "no more available this week." : "that's the most you can order." }));
+    let next = cur + d;
+    if (d > 0 && cur === 0) next = minFor(i);
+    if (d < 0 && belowMin(i, next)) next = 0;
+    const left = avail(i);
+    if (d > 0 && next > Math.min(i.max_per_order, left)) {
+      setLimitMsg((m) => ({ ...m, [i.id]: next > left ? "no more available this week." : "that's the most you can order." }));
       return;
     }
     setLimitMsg((m) => ({ ...m, [i.id]: "" }));
@@ -148,16 +159,17 @@ export default function OrderMenu() {
   const [sel, setSel] = useState<Item | null>(null);
   const [mQty, setMQty] = useState(1);
   const [mMsg, setMMsg] = useState("");
-  const openItem = (i: Item) => { setSel(i); setMQty(Math.max(1, qty[i.id] ?? 1)); setMMsg(""); };
+  const openItem = (i: Item) => { setSel(i); setMQty(Math.max(minFor(i), qty[i.id] ?? 0)); setMMsg(""); };
   const mChange = (d: number) => {
     if (!sel) return;
     const next = mQty + d;
-    if (d > 0 && next > Math.min(sel.max_per_order, sel.remaining)) {
-      setMMsg(next > sel.remaining ? "no more available this week." : "that's the most you can order.");
+    const left = avail(sel);
+    if (d > 0 && next > Math.min(sel.max_per_order, left)) {
+      setMMsg(next > left ? "no more available this week." : "that's the most you can order.");
       return;
     }
     setMMsg("");
-    setMQty(Math.max(1, next));
+    setMQty(Math.max(minFor(sel), next));
   };
   useEffect(() => {
     if (!sel) return;
@@ -173,6 +185,11 @@ export default function OrderMenu() {
     setError("");
     const lines = Object.entries(qty).filter(([, n]) => n > 0).map(([item_id, n]) => ({ item_id, qty: n }));
     if (!lines.length) return setError("Pick at least one item.");
+    const short = items.find((i) => belowMin(i, qty[i.id] ?? 0));
+    if (short) {
+      setLimitMsg((m) => ({ ...m, [short.id]: `min ${short.min_per_order} per order.` }));
+      return setError(`${short.name}: min ${short.min_per_order} per order.`);
+    }
     const emailProblem = emailError(form.email);
     const phoneProblem = phoneError(form.phone, form.sms_opt_in);
     setEmailMsg(emailProblem);
@@ -295,8 +312,13 @@ export default function OrderMenu() {
                          <div className="relative aspect-[4/5] overflow-hidden rounded-[6px] bg-secondary/60">
                            <Button type="button" variant="ghost" onClick={() => openItem(i)} className="flex h-full w-full items-center justify-center overflow-hidden rounded-none p-0 hover:bg-transparent" aria-label={`view ${i.name}`}>
                           <img src={itemImage(i.name, i.image_url).src} alt={i.name} loading="lazy"
-                             className={`${itemImage(i.name, i.image_url).cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} transition-transform duration-700 group-hover:scale-105`} />
+                             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
                            </Button>
+                           {i.remaining === 0 ? (
+                             <span className="absolute bottom-2 right-2 z-10 flex h-11 items-center rounded-full bg-primary px-4 font-mono text-[12px] lowercase text-primary-foreground">
+                               sold out
+                             </span>
+                           ) : (
                            <motion.div
                              initial={false}
                              animate={{ width: (qty[i.id] ?? 0) > 0 ? 136 : 44 }}
@@ -308,26 +330,28 @@ export default function OrderMenu() {
                                  <Button type="button" variant="ghost" size="icon"
                                    aria-label={`less ${i.name}`} onClick={() => change(i, -1)} disabled={!open}
                                    className="h-11 w-10 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
-                                   {qty[i.id] === 1 ? <Trash2 /> : <Minus />}
+                                   {(qty[i.id] === 1 || belowMin(i, qty[i.id] - 1)) ? <Trash2 /> : <Minus />}
                                  </Button>
                                  <span className="min-w-0 flex-1 text-center font-mono text-[14px]" aria-live="polite" aria-atomic="true">
                                    <motion.span key={qty[i.id]} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="block">
                                      {qty[i.id]}
+                                     {i.min_per_order > 1 && qty[i.id] === i.min_per_order && <span className="ml-1 text-[12px] opacity-75">(min)</span>}
                                    </motion.span>
                                  </span>
                                </>
                              )}
                              <Button type="button" variant="ghost" size="icon"
-                               aria-label={`more ${i.name}`} onClick={() => change(i, 1)} disabled={!open || i.remaining === 0}
+                               aria-label={`more ${i.name}`} onClick={() => change(i, 1)} disabled={!open}
                                className="ml-auto h-11 w-11 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
                                <Plus className="!h-5 !w-5" />
                              </Button>
                            </motion.div>
+                           )}
                         </div>
                          <Button type="button" variant="ghost" onClick={() => openItem(i)} className="block h-auto w-full whitespace-normal rounded-none p-0 text-left hover:bg-transparent" aria-label={`details ${i.name}`}>
                         <h3 className="mt-[18px] font-display text-base font-black leading-none tracking-brand text-primary md:text-lg md:leading-none">{i.name.toLowerCase()}.</h3>
-                        <p className="mt-1 font-mono text-[11px] text-primary/65 md:text-[12px]">
-                          {i.remaining === 0 ? "sold out" : money(i.price_cents)}
+                        <p className="mt-1 font-mono text-[12px] text-primary/65 md:text-[13px]">
+                          {money(i.price_cents)}
                         </p>
                          </Button>
                         {limitMsg[i.id] && <p className="mt-2 font-mono text-[11px] text-destructive">{limitMsg[i.id]}</p>}
@@ -366,11 +390,11 @@ export default function OrderMenu() {
                           <Checkbox id="checkout-sms-opt-in" checked={form.sms_opt_in}
                             onCheckedChange={(v) => {
                               setForm({ ...form, sms_opt_in: v === true });
-                              if (v !== true && !form.phone) setPhoneMsg("");
+                              if (!form.phone) setPhoneMsg(v === true ? phoneError("", true) : "");
                             }}
                             aria-describedby="checkout-sms-terms"
                             className="h-5 w-5 rounded-[4px]" />
-                          receive order and pickup updates
+                          receive order and pickup updates on phone
                         </label>
                         <SmsDisclosure id="checkout-sms-terms" className="mt-1 pl-8" />
                       </div>
@@ -409,32 +433,43 @@ export default function OrderMenu() {
           </button>
           <div className="mx-auto w-full max-w-[760px]">
             <img src={itemImage(sel.name, sel.image_url).src} alt={sel.name}
-              className={cn("aspect-[3/2] w-full", itemImage(sel.name, sel.image_url).cutout ? "bg-secondary/60 object-contain p-6" : "object-cover")} />
+              className="aspect-[4/5] max-h-[70vh] w-full object-cover" />
             <div className="px-6 py-8">
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
               <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
               {sel.description && <p className="mt-5 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.description}</p>}
-              {sel.remaining === 0 ? (
-                <p className="mt-10 text-center font-mono text-[13px] text-primary/70">sold out.</p>
+              {sel.ingredients?.trim() && (
+                <div className="mt-6">
+                  <h4 className="font-mono text-[11px] uppercase tracking-[0.18em] text-primary/60">ingredients</h4>
+                  <p className="mt-2 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.ingredients.trim()}</p>
+                </div>
+              )}
+              {avail(sel) === 0 ? (
+                <p className="mt-10 text-center font-mono text-[13px] text-primary/70">
+                  {sel.remaining === 0 ? "sold out." : "no more available this week."}
+                </p>
               ) : (
                 <>
                   <div className="mt-10 flex items-center justify-center gap-5">
-                    <button type="button" aria-label="less" onClick={() => mChange(-1)} disabled={mQty <= 1}
-                      className="rounded-[6px] bg-secondary px-3 py-2 text-primary disabled:opacity-40"><Minus className="h-4 w-4" /></button>
-                    <span className="w-6 text-center font-mono text-[15px] text-primary">{mQty}</span>
+                    <button type="button" aria-label="less" onClick={() => mChange(-1)} disabled={mQty <= minFor(sel)}
+                      className="flex h-[50px] w-[50px] items-center justify-center rounded-full bg-secondary text-primary disabled:opacity-40"><Minus className="h-5 w-5" /></button>
+                    <span className="min-w-6 whitespace-nowrap text-center font-mono text-[15px] text-primary">
+                      {mQty}
+                      {sel.min_per_order > 1 && mQty === sel.min_per_order && <span className="ml-1 text-[13px] text-primary/60">(min)</span>}
+                    </span>
                     <button type="button" aria-label="more" onClick={() => mChange(1)}
-                      className="rounded-[6px] bg-secondary px-3 py-2 text-primary"><Plus className="h-4 w-4" /></button>
+                      className="flex h-[50px] w-[50px] items-center justify-center rounded-full bg-secondary text-primary"><Plus className="h-5 w-5" /></button>
                   </div>
                   {mMsg && <p className="mt-3 text-center font-mono text-[11px] text-destructive">{mMsg}</p>}
                 </>
               )}
             </div>
           </div>
-          {sel.remaining > 0 && (
+          {avail(sel) > 0 && (
             <div className="sticky bottom-0 mt-auto w-full bg-background/95 px-4 pb-4 pt-2">
               <button type="button" disabled={!open}
-                onClick={() => { setQty((q) => ({ ...q, [sel.id]: mQty })); setLimitMsg((m) => ({ ...m, [sel.id]: "" })); setSel(null); }}
-                className="mx-auto flex w-full max-w-[760px] items-center justify-between rounded-full bg-primary px-6 py-4 font-mono text-[13px] lowercase tracking-brand text-primary-foreground disabled:opacity-50">
+                onClick={() => { setQty((q) => ({ ...q, [sel.id]: Math.min(mQty, avail(sel)) })); setLimitMsg((m) => ({ ...m, [sel.id]: "" })); setSel(null); }}
+                className="mx-auto flex w-full max-w-[760px] items-center justify-between rounded-[6px] bg-primary px-6 py-4 font-mono text-[15px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
                 <span>{open ? "add to cart" : "preorders closed"}</span>
                 <span>{money(sel.price_cents * mQty)}</span>
               </button>
@@ -512,7 +547,7 @@ function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmatio
                 onCheckedChange={(v) => updateSms(v === true)}
                 aria-describedby="confirm-sms-terms"
                 className="h-5 w-5 rounded-[4px]" />
-              receive order and pickup updates
+              receive order and pickup updates on phone
             </label>
             <SmsDisclosure id="confirm-sms-terms" className="mt-1 pl-8" />
             {smsError && <p role="alert" className="mt-1.5 pl-8 font-mono text-[12px] text-destructive">{smsError}</p>}
@@ -528,7 +563,7 @@ function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmatio
                 <li key={i.name} className="flex items-center gap-4 py-3 first:pt-0">
                   <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-secondary">
                     <img src={img.src} alt="" loading="lazy"
-                      className={img.cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} />
+                      className="h-full w-full object-cover" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-display text-[17px] font-black tracking-brand text-primary">{i.name}</p>

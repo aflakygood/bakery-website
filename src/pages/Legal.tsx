@@ -60,7 +60,7 @@ export function Terms() {
         <ul>
           <li><span className="font-bold">program:</span> a flaky good. order &amp; pickup updates.</li>
           <li><span className="font-bold">what you'll get:</span> order confirmations, pickup reminders, and changes to your pickup time or place. no marketing.</li>
-          <li><span className="font-bold">how you opt in:</span> by checking "receive order and pickup updates" on the preorder or order confirmation page. it's optional and not required to buy anything.</li>
+          <li><span className="font-bold">how you opt in:</span> by checking "receive order and pickup updates on phone" on the preorder or order confirmation page. it's optional and not required to buy anything.</li>
           <li><span className="font-bold">frequency:</span> message frequency varies, usually a few texts per order.</li>
           <li><span className="font-bold">cost:</span> msg &amp; data rates may apply.</li>
           <li><span className="font-bold">opt out:</span> reply <span className="normal-case">STOP</span> to any message. you'll get one final confirmation and no more texts.</li>
