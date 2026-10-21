@@ -26,8 +26,13 @@ export default function Drop() {
     <section id="order" className="relative pb-[80px] pt-[80px] md:pb-[128px] md:pt-[96px]">
       <div className="mx-auto max-w-[1100px] px-6 md:px-10">
         <h2 className="text-center font-display text-4xl font-black tracking-brand text-primary md:text-6xl">this week's drop.</h2>
-        <article className="mx-auto mt-10 max-w-[640px] overflow-hidden rounded-[6px] bg-secondary md:mt-14">
+        <article className="relative mx-auto mt-10 max-w-[640px] overflow-hidden rounded-[6px] bg-secondary md:mt-14">
           <img src={cover} alt="multigrain sourdough loaf on a marble board" loading="lazy" className="block h-64 w-full object-cover object-[50%_48%] md:h-80" />
+          {phase === "open" && drop?.closes_at && (
+            <span className="absolute right-3 top-3 rounded-full bg-background px-3.5 py-1.5 font-mono text-[12px] lowercase tracking-brand text-primary shadow-sm md:right-4 md:top-4 md:px-4 md:text-[14px]">
+              preorder closes on <span className="font-semibold">{closesLabel(drop.closes_at)}</span>
+            </span>
+          )}
           <div className="px-6 pb-7 pt-6 md:px-8 md:pb-8 md:pt-7">
             <h3 className="font-display text-2xl font-black leading-tight tracking-brand text-primary md:text-3xl">
               {drop?.title?.trim() || "fresh this week."}
@@ -49,13 +54,6 @@ export default function Drop() {
               <p aria-disabled="true"
                 className="mt-7 flex items-center justify-center rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground opacity-50">
                 {phase === "ended" ? "sold out" : "preorders closed"}
-              </p>
-            )}
-            {phase === "open" && drop?.closes_at && (
-              <p className="relative top-[6px] mt-4 flex justify-center">
-                <span className="rounded-full bg-background px-4 py-1.5 font-mono text-[13px] lowercase tracking-brand text-primary md:text-[14px]">
-                  preorder closes on <span className="font-semibold">{closesLabel(drop.closes_at)}</span>
-                </span>
               </p>
             )}
           </div>
