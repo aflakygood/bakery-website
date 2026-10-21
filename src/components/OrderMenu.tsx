@@ -314,6 +314,11 @@ export default function OrderMenu() {
                           <img src={itemImage(i.name, i.image_url).src} alt={i.name} loading="lazy"
                              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
                            </Button>
+                           {i.remaining === 0 ? (
+                             <span className="absolute bottom-2 right-2 z-10 flex h-11 items-center rounded-full bg-primary px-4 font-mono text-[12px] lowercase text-primary-foreground">
+                               sold out
+                             </span>
+                           ) : (
                            <motion.div
                              initial={false}
                              animate={{ width: (qty[i.id] ?? 0) > 0 ? 136 : 44 }}
@@ -336,16 +341,17 @@ export default function OrderMenu() {
                                </>
                              )}
                              <Button type="button" variant="ghost" size="icon"
-                               aria-label={`more ${i.name}`} onClick={() => change(i, 1)} disabled={!open || i.remaining === 0}
+                               aria-label={`more ${i.name}`} onClick={() => change(i, 1)} disabled={!open}
                                className="ml-auto h-11 w-11 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
                                <Plus className="!h-5 !w-5" />
                              </Button>
                            </motion.div>
+                           )}
                         </div>
                          <Button type="button" variant="ghost" onClick={() => openItem(i)} className="block h-auto w-full whitespace-normal rounded-none p-0 text-left hover:bg-transparent" aria-label={`details ${i.name}`}>
                         <h3 className="mt-[18px] font-display text-base font-black leading-none tracking-brand text-primary md:text-lg md:leading-none">{i.name.toLowerCase()}.</h3>
                         <p className="mt-1 font-mono text-[11px] text-primary/65 md:text-[12px]">
-                          {i.remaining === 0 ? "sold out" : money(i.price_cents)}
+                          {money(i.price_cents)}
                         </p>
                          </Button>
                         {limitMsg[i.id] && <p className="mt-2 font-mono text-[11px] text-destructive">{limitMsg[i.id]}</p>}
