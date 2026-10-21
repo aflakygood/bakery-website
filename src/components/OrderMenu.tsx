@@ -452,13 +452,13 @@ export default function OrderMenu() {
                 <>
                   <div className="mt-10 flex items-center justify-center gap-5">
                     <button type="button" aria-label="less" onClick={() => mChange(-1)} disabled={mQty <= minFor(sel)}
-                      className="rounded-[6px] bg-secondary px-3 py-2 text-primary disabled:opacity-40"><Minus className="h-4 w-4" /></button>
+                      className="flex h-10 w-[50px] items-center justify-center rounded-[6px] bg-secondary text-primary disabled:opacity-40"><Minus className="h-5 w-5" /></button>
                     <span className="min-w-6 whitespace-nowrap text-center font-mono text-[15px] text-primary">
                       {mQty}
                       {sel.min_per_order > 1 && mQty === sel.min_per_order && <span className="ml-1 text-[13px] text-primary/60">(min)</span>}
                     </span>
                     <button type="button" aria-label="more" onClick={() => mChange(1)}
-                      className="rounded-[6px] bg-secondary px-3 py-2 text-primary"><Plus className="h-4 w-4" /></button>
+                      className="flex h-10 w-[50px] items-center justify-center rounded-[6px] bg-secondary text-primary"><Plus className="h-5 w-5" /></button>
                   </div>
                   {mMsg && <p className="mt-3 text-center font-mono text-[11px] text-destructive">{mMsg}</p>}
                 </>
