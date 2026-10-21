@@ -24,7 +24,7 @@ const toLocalInput = (iso: string | null) => {
 const fromLocalInput = (value: string) => (value ? new Date(value).toISOString() : null);
 const phaseLabel = { upcoming: "not live yet", open: "taking preorders", ended: "ended (shows sold out)", closed: "closed early" } as const;
 
-type DropDraft = { opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
+type DropDraft = { title: string; opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
 // group is the key of a GroupRow, or "" when the item has its own spots.
 type ItemDraft = { name: string; price: string; total_qty: string; min_per_order: string; max_per_order: string; description: string; ingredients: string; image_url: string | null; group: string };
 type GroupDraft = { name: string; total_qty: string };
@@ -32,6 +32,7 @@ type GroupRow = { key: string; id: string | null; draft: GroupDraft };
 // One editable menu row. id is null for items added here that haven't been saved yet.
 type Row = { key: string; id: string | null; draft: ItemDraft; file: File | null; preview: string | null };
 const dropDraftOf = (d: Drop): DropDraft => ({
+  title: d.title ?? "",
   opens_at: toLocalInput(d.opens_at),
   closes_at: toLocalInput(d.closes_at),
   pickup_date: d.pickup_date ?? "",
@@ -173,6 +174,10 @@ export default function Admin() {
     if (!drop || !dropDraft) return;
     const base = dropDraftOf(drop);
     const dropPatch: Record<string, string | null> = {};
+    const title = dropDraft.title.trim();
+    if (!title) return setNotice({ ok: false, text: "give the drop a title." });
+    if (title.length > 80) return setNotice({ ok: false, text: "drop title is too long (80 characters max)." });
+    if (title !== base.title) dropPatch.title = title;
     if (dropDraft.opens_at !== base.opens_at) dropPatch.opens_at = fromLocalInput(dropDraft.opens_at);
     if (dropDraft.closes_at !== base.closes_at) dropPatch.closes_at = fromLocalInput(dropDraft.closes_at);
     if (dropDraft.pickup_date !== base.pickup_date) dropPatch.pickup_date = dropDraft.pickup_date || null;
@@ -351,6 +356,9 @@ export default function Admin() {
               </div>
             </div>
             {dropDraft && (<>
+              <label className="mt-4 block font-mono text-[11px] text-primary/60">drop title (shown on the homepage)
+                <input className={field} maxLength={80} value={dropDraft.title} onChange={(event) => editDrop({ title: event.target.value })} />
+              </label>
               <p className="mt-4 font-mono text-[11px] text-primary/60">preorder window (your local time). the drop is hidden before it opens and shows sold out after it closes.</p>
               <div className="mt-1 grid gap-3 sm:grid-cols-2">
                 <label className="font-mono text-[11px] text-primary/60">opens

@@ -27,10 +27,10 @@ export default function Drop() {
       <div className="mx-auto max-w-[1100px] px-6 md:px-10">
         <h2 className="text-center font-display text-4xl font-black tracking-brand text-primary md:text-6xl">this week's drop.</h2>
         <article className="mx-auto mt-10 max-w-[640px] overflow-hidden rounded-[6px] bg-secondary md:mt-14">
-          <img src={cover} alt="this week's bake" loading="lazy" className="block h-64 w-full object-cover md:h-80" />
+          <img src={cover} alt="multigrain sourdough loaf on a marble board" loading="lazy" className="block h-64 w-full object-cover object-[50%_48%] md:h-80" />
           <div className="px-6 pb-7 pt-6 md:px-8 md:pb-8 md:pt-7">
             <h3 className="font-display text-2xl font-black leading-tight tracking-brand text-primary md:text-3xl">
-              Breads and Focaccia
+              {drop?.title?.trim() || "fresh this week."}
             </h3>
             <p className="mt-5 flex items-start gap-2.5 font-mono text-[15px] text-primary/80">
               <Calendar className="mt-0.5 h-4 w-4 shrink-0" />

@@ -32,7 +32,9 @@ const pillars = [
   { t: "small batch baking.", d: "Baked to order and in small batches to focus on freshness, consistency, and quality." },
 ];
 
-const AUTO_SCROLL_MS = 2000;
+const AUTO_SCROLL_MS = 3000;
+const SLIDE_MS = 900;
+const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const RESUME_AFTER_INTERACTION_MS = 5000;
 // Rendered twice so auto-scroll can loop seamlessly: once a full set has
 // scrolled past, we jump back by exactly one set width (visually identical).
@@ -60,7 +62,31 @@ export default function About() {
   const hovering = useRef(false);
   const inView = useRef(false);
   const resumeAt = useRef(0);
+  const slide = useRef(0);
+  const stopSlide = () => {
+    if (!slide.current) return;
+    cancelAnimationFrame(slide.current);
+    slide.current = 0;
+    if (scrollerRef.current) scrollerRef.current.style.scrollSnapType = "x mandatory";
+  };
+  // Eased slide; scroll snapping is paused while it runs so it doesn't fight the animation.
+  const slideTo = (el: HTMLElement, target: number) => {
+    stopSlide();
+    const from = el.scrollLeft;
+    const to = Math.max(0, Math.min(target, el.scrollWidth - el.clientWidth));
+    if (reduceMotion || Math.abs(to - from) < 1) return el.scrollTo({ left: to, behavior: "instant" });
+    el.style.scrollSnapType = "none";
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / SLIDE_MS);
+      el.scrollTo({ left: from + (to - from) * easeInOutCubic(t), behavior: "instant" });
+      if (t < 1) slide.current = requestAnimationFrame(step);
+      else { slide.current = 0; el.style.scrollSnapType = "x mandatory"; }
+    };
+    slide.current = requestAnimationFrame(step);
+  };
   const pauseForInteraction = () => { resumeAt.current = Date.now() + RESUME_AFTER_INTERACTION_MS; };
+  const onUserScroll = () => { stopSlide(); pauseForInteraction(); };
 
   const onScroll = () => {
     const el = scrollerRef.current;
@@ -71,9 +97,14 @@ export default function About() {
     const el = scrollerRef.current;
     if (!el) return;
     pauseForInteraction();
+    stopSlide();
+    const kids = figures(el);
     const amount = Math.max(el.clientWidth * 0.8, 260);
-    wrap(el, figures(el), dir, amount);
-    el.scrollBy({ left: dir * amount, behavior: "smooth" });
+    const pitch = kids[1].offsetLeft - kids[0].offsetLeft;
+    const steps = Math.max(1, Math.round(amount / pitch));
+    wrap(el, kids, dir, amount);
+    const target = kids[Math.max(0, Math.min(kids.length - 1, nearestIndex(el, kids) + dir * steps))];
+    slideTo(el, centerOf(el, target));
   };
 
   useEffect(() => {
@@ -86,9 +117,10 @@ export default function About() {
       const kids = figures(el);
       wrap(el, kids, 1, 0);
       const next = kids[nearestIndex(el, kids) + 1];
-      if (next) el.scrollTo({ left: centerOf(el, next), behavior: "smooth" });
+      if (next) slideTo(el, centerOf(el, next));
     }, AUTO_SCROLL_MS);
-    return () => { window.clearInterval(id); io.disconnect(); };
+    return () => { window.clearInterval(id); io.disconnect(); stopSlide(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- slideTo/stopSlide only touch refs
   }, [reduceMotion]);
   return (
     <section id="about" className="relative pb-20 pt-[50px] md:pb-32 md:pt-[98px]">
@@ -131,10 +163,10 @@ export default function About() {
           onScroll={onScroll}
           onPointerEnter={(e) => { if (e.pointerType === "mouse") hovering.current = true; }}
           onPointerLeave={() => { hovering.current = false; }}
-          onPointerDown={pauseForInteraction}
-          onTouchStart={pauseForInteraction}
-          onWheel={pauseForInteraction}
-          className="relative touch-pan-x touch-pan-y no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-6 pb-2 md:gap-6 md:px-10"
+          onPointerDown={onUserScroll}
+          onTouchStart={onUserScroll}
+          onWheel={onUserScroll}
+          className="relative touch-pan-x touch-pan-y no-scrollbar flex gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain px-6 pb-2 md:gap-6 md:px-10"
           style={{ scrollSnapType: "x mandatory" }}
         >
           {loopGallery.map((g, i) => (
