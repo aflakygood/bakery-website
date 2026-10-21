@@ -391,7 +391,7 @@ export default function OrderMenu() {
                         {emailMsg && <p id="checkout-email-error" role="alert" className="mt-1.5 font-mono text-[12px] normal-case text-destructive">{emailMsg}</p>}
                       </div>
                       <div>
-                        <input id="checkout-phone" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="phone number (optional)"
+                        <input id="checkout-phone" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="phone number"
                           aria-invalid={!!phoneMsg} aria-describedby={phoneMsg ? "checkout-phone-error" : undefined}
                           className={cn(input, phoneMsg && "border-destructive focus:border-destructive")} value={form.phone}
                           onChange={(e) => {
