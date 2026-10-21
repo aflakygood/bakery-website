@@ -330,7 +330,7 @@ export default function OrderMenu() {
                                  <span className="min-w-0 flex-1 text-center font-mono text-[14px]" aria-live="polite" aria-atomic="true">
                                    <motion.span key={qty[i.id]} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="block">
                                      {qty[i.id]}
-                                     {i.min_per_order > 1 && qty[i.id] === i.min_per_order && <span className="ml-1 text-[10px] opacity-75">(min)</span>}
+                                     {i.min_per_order > 1 && qty[i.id] === i.min_per_order && <span className="ml-1 text-[12px] opacity-75">(min)</span>}
                                    </motion.span>
                                  </span>
                                </>
@@ -443,7 +443,7 @@ export default function OrderMenu() {
                       className="rounded-[6px] bg-secondary px-3 py-2 text-primary disabled:opacity-40"><Minus className="h-4 w-4" /></button>
                     <span className="min-w-6 whitespace-nowrap text-center font-mono text-[15px] text-primary">
                       {mQty}
-                      {sel.min_per_order > 1 && mQty === sel.min_per_order && <span className="ml-1 text-[11px] text-primary/60">(min)</span>}
+                      {sel.min_per_order > 1 && mQty === sel.min_per_order && <span className="ml-1 text-[13px] text-primary/60">(min)</span>}
                     </span>
                     <button type="button" aria-label="more" onClick={() => mChange(1)}
                       className="rounded-[6px] bg-secondary px-3 py-2 text-primary"><Plus className="h-4 w-4" /></button>
