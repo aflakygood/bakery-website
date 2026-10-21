@@ -160,7 +160,20 @@ export default function OrderMenu() {
   const [sel, setSel] = useState<Item | null>(null);
   const [mQty, setMQty] = useState(1);
   const [mMsg, setMMsg] = useState("");
-  const openItem = (i: Item) => { setSel(i); setMQty(Math.max(minFor(i), qty[i.id] ?? 0)); setMMsg(""); };
+  // The details sheet gets its own history entry so the hardware back button only dismisses it.
+  const closeItem = () => {
+    if (window.history.state?.itemSheet) window.history.back();
+    else setSel(null);
+  };
+  useEffect(() => {
+    const onPop = () => setSel(null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  const openItem = (i: Item) => {
+    if (!window.history.state?.itemSheet) window.history.pushState({ ...window.history.state, itemSheet: true }, "");
+    setSel(i); setMQty(Math.max(minFor(i), qty[i.id] ?? 0)); setMMsg("");
+  };
   const mChange = (d: number) => {
     if (!sel) return;
     const next = mQty + d;
@@ -175,7 +188,7 @@ export default function OrderMenu() {
   useEffect(() => {
     if (!sel) return;
     document.body.style.overflow = "hidden";
-    const k = (e: KeyboardEvent) => e.key === "Escape" && setSel(null);
+    const k = (e: KeyboardEvent) => e.key === "Escape" && closeItem();
     window.addEventListener("keydown", k);
     return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", k); };
   }, [sel]);
@@ -431,7 +444,7 @@ export default function OrderMenu() {
       </div>
       {sel && (
         <div role="dialog" aria-modal="true" aria-label={sel.name} className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-background">
-          <button type="button" aria-label="close" onClick={() => setSel(null)}
+          <button type="button" aria-label="close" onClick={closeItem}
             className="fixed right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-primary/70 text-primary-foreground backdrop-blur-sm">
             <X className="h-4 w-4" />
           </button>
@@ -472,7 +485,7 @@ export default function OrderMenu() {
           {avail(sel) > 0 && (
             <div className="sticky bottom-0 mt-auto w-full bg-background/95 px-4 pb-4 pt-2">
               <button type="button" disabled={!open}
-                onClick={() => { setQty((q) => ({ ...q, [sel.id]: Math.min(mQty, avail(sel)) })); setLimitMsg((m) => ({ ...m, [sel.id]: "" })); setSel(null); }}
+                onClick={() => { setQty((q) => ({ ...q, [sel.id]: Math.min(mQty, avail(sel)) })); setLimitMsg((m) => ({ ...m, [sel.id]: "" })); closeItem(); }}
                 className="mx-auto flex w-full max-w-[760px] items-center justify-between rounded-[6px] bg-primary px-6 py-4 font-mono text-[15px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
                 <span>{open ? "add to cart" : "preorders closed"}</span>
                 <span>{money(sel.price_cents * mQty)}</span>
