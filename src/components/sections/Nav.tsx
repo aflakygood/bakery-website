@@ -32,7 +32,7 @@ export default function Nav() {
           {preorderClosed ? (
             <span aria-disabled="true" title="preorders are closed"
               className="cursor-not-allowed rounded-[6px] border border-primary px-4 py-2 font-mono text-[14px] lowercase tracking-brand text-primary opacity-40 md:px-5 md:py-2.5 md:text-[15px]">
-              preorder
+              preorders closed
             </span>
           ) : (
             <Link to="/preorder"
