@@ -9,7 +9,9 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; created_at: string };
-type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number; sort: number; image_url: string | null };
+type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null };
+// Items in a stock group share the group's spots instead of having their own.
+type Group = { id: string; name: string; total_qty: number; sort: number };
 type Drop = PickupFields & DropSchedule & { id: string; title: string };
 
 // <input type="datetime-local"> works in the admin's local time; the database stores UTC.
@@ -23,7 +25,10 @@ const fromLocalInput = (value: string) => (value ? new Date(value).toISOString()
 const phaseLabel = { upcoming: "not live yet", open: "taking preorders", ended: "ended (shows sold out)", closed: "closed early" } as const;
 
 type DropDraft = { opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
-type ItemDraft = { name: string; price: string; total_qty: string; max_per_order: string; description: string; image_url: string | null };
+// group is the key of a GroupRow, or "" when the item has its own spots.
+type ItemDraft = { name: string; price: string; total_qty: string; max_per_order: string; description: string; image_url: string | null; group: string };
+type GroupDraft = { name: string; total_qty: string };
+type GroupRow = { key: string; id: string | null; draft: GroupDraft };
 // One editable menu row. id is null for items added here that haven't been saved yet.
 type Row = { key: string; id: string | null; draft: ItemDraft; file: File | null; preview: string | null };
 const dropDraftOf = (d: Drop): DropDraft => ({
@@ -41,9 +46,12 @@ const itemDraftOf = (i: Item): ItemDraft => ({
   max_per_order: String(i.max_per_order),
   description: i.description ?? "",
   image_url: i.image_url ?? null,
+  group: i.group_id ?? "",
 });
+const groupDraftOf = (g: Group): GroupDraft => ({ name: g.name, total_qty: String(g.total_qty) });
+const groupRowsOf = (groups: Group[]): GroupRow[] => groups.map((g) => ({ key: g.id, id: g.id, draft: groupDraftOf(g) }));
 const rowsOf = (items: Item[]): Row[] => items.map((item) => ({ key: item.id, id: item.id, draft: itemDraftOf(item), file: null, preview: null }));
-const blankDraft: ItemDraft = { name: "", price: "", total_qty: "0", max_per_order: "2", description: "", image_url: null };
+const blankDraft: ItemDraft = { name: "", price: "", total_qty: "0", max_per_order: "2", description: "", image_url: null, group: "" };
 const photoTypes: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 const same = (a: object, b: object) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -55,6 +63,8 @@ export default function Admin() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [dropDraft, setDropDraft] = useState<DropDraft | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupRows, setGroupRows] = useState<GroupRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirming, setConfirming] = useState<"close" | "next" | null>(null);
@@ -73,6 +83,9 @@ export default function Admin() {
     setDrop(latestDrop);
     if (resetDrafts) setDropDraft(latestDrop ? dropDraftOf(latestDrop) : null);
     if (!latestDrop) return;
+    const { data: dropGroups } = await supabase.from("item_groups").select("*").eq("drop_id", latestDrop.id).order("sort");
+    setGroups((dropGroups ?? []) as Group[]);
+    if (resetDrafts) setGroupRows(groupRowsOf((dropGroups ?? []) as Group[]));
     const { data: dropItems } = await supabase.from("drop_items").select("*").eq("drop_id", latestDrop.id).order("sort");
     setItems((dropItems ?? []) as Item[]);
     if (resetDrafts) setRows(rowsOf((dropItems ?? []) as Item[]));
@@ -98,7 +111,12 @@ export default function Admin() {
     const item = row.id ? items.find((i) => i.id === row.id) : undefined;
     return !item || !!row.file || !same(row.draft, itemDraftOf(item));
   };
-  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || rows.some(rowChanged));
+  const groupChanged = (row: GroupRow) => {
+    const group = row.id ? groups.find((g) => g.id === row.id) : undefined;
+    return !group || !same(row.draft, groupDraftOf(group));
+  };
+  const removedGroups = groups.filter((g) => !groupRows.some((row) => row.id === g.id));
+  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || rows.some(rowChanged) || groupRows.some(groupChanged) || removedGroups.length > 0);
 
   useEffect(() => {
     if (!dirty) return;
@@ -130,6 +148,20 @@ export default function Admin() {
     setNotice(null);
     setRows((all) => [...all, { key: `new-${crypto.randomUUID()}`, id: null, draft: { ...blankDraft }, file: null, preview: null }]);
   };
+  const addGroup = () => {
+    setNotice(null);
+    setGroupRows((all) => [...all, { key: `new-${crypto.randomUUID()}`, id: null, draft: { name: "", total_qty: "0" } }]);
+  };
+  const editGroup = (key: string, patch: Partial<GroupDraft>) => {
+    setNotice(null);
+    setGroupRows((all) => all.map((row) => (row.key === key ? { ...row, draft: { ...row.draft, ...patch } } : row)));
+  };
+  // Items in a removed group go back to their own spots.
+  const removeGroup = (key: string) => {
+    setNotice(null);
+    setGroupRows((all) => all.filter((row) => row.key !== key));
+    setRows((all) => all.map((row) => (row.draft.group === key ? { ...row, draft: { ...row.draft, group: "" } } : row)));
+  };
   const removeNewItem = (row: Row) => {
     if (row.preview) URL.revokeObjectURL(row.preview);
     setRows((all) => all.filter((r) => r.key !== row.key));
@@ -147,6 +179,19 @@ export default function Admin() {
     if (dropDraft.pickup_location !== base.pickup_location) dropPatch.pickup_location = dropDraft.pickup_location;
     if (dropDraft.opens_at && dropDraft.closes_at && dropDraft.closes_at <= dropDraft.opens_at)
       return setNotice({ ok: false, text: "closes must be after opens." });
+
+    const changedGroups = groupRows.filter(groupChanged);
+    const groupFields: Record<string, Pick<Group, "name" | "total_qty">> = {};
+    const groupNames = new Set<string>();
+    for (const row of groupRows) {
+      const name = row.draft.name.trim(), qty = Number(row.draft.total_qty);
+      if (!name) return setNotice({ ok: false, text: "every stock group needs a name." });
+      if (name.length > 80) return setNotice({ ok: false, text: `${name.slice(0, 20)}… is too long a group name (80 characters max).` });
+      if (groupNames.has(name.toLowerCase())) return setNotice({ ok: false, text: `there are two stock groups called ${name}.` });
+      groupNames.add(name.toLowerCase());
+      if (row.draft.total_qty === "" || !Number.isInteger(qty) || qty < 0) return setNotice({ ok: false, text: `total spots for ${name} must be a whole number.` });
+      groupFields[row.key] = { name, total_qty: qty };
+    }
 
     const changed = rows.filter(rowChanged);
     const fields: Record<string, Pick<Item, "name" | "price_cents" | "total_qty" | "max_per_order" | "description">> = {};
@@ -167,6 +212,19 @@ export default function Admin() {
       const result = await supabase.from("drops").update(dropPatch).eq("id", drop.id);
       if (result.error) error = result.error.message;
     }
+    // Save groups before items so new groups have ids to assign.
+    const groupIds = new Map(groupRows.filter((row) => row.id).map((row) => [row.key, row.id as string]));
+    let nextGroupSort = Math.max(0, ...groups.map((g) => g.sort)) + 1;
+    for (const row of changedGroups) {
+      if (error) break;
+      const values = groupFields[row.key];
+      const result = row.id
+        ? await supabase.from("item_groups").update(values).eq("id", row.id).select("id").single()
+        : await supabase.from("item_groups").insert({ ...values, drop_id: drop.id, sort: nextGroupSort++ }).select("id").single();
+      if (result.error) { error = result.error.message; break; }
+      groupIds.set(row.key, result.data.id);
+      setGroupRows((all) => all.map((r) => (r.key === row.key ? { ...r, id: result.data.id } : r)));
+    }
     let nextSort = Math.max(0, ...items.map((item) => item.sort)) + 1;
     for (const row of changed) {
       if (error) break;
@@ -177,7 +235,7 @@ export default function Admin() {
         if (upload.error) { error = upload.error.message; break; }
         imageUrl = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
       }
-      const values = { ...fields[row.key], image_url: imageUrl };
+      const values = { ...fields[row.key], image_url: imageUrl, group_id: row.draft.group ? groupIds.get(row.draft.group) ?? null : null };
       const result = row.id
         ? await supabase.from("drop_items").update(values).eq("id", row.id).select("id").single()
         : await supabase.from("drop_items").insert({ ...values, drop_id: drop.id, sort: nextSort++ }).select("id").single();
@@ -185,6 +243,11 @@ export default function Admin() {
       // Record progress so a retry after a partial failure doesn't re-insert or re-upload.
       if (row.preview) URL.revokeObjectURL(row.preview);
       updateRow(row.key, { id: result.data.id, file: null, preview: null, draft: { ...row.draft, name: values.name, image_url: imageUrl } });
+    }
+    for (const group of removedGroups) {
+      if (error) break;
+      const result = await supabase.from("item_groups").delete().eq("id", group.id);
+      if (result.error) error = result.error.message;
     }
     setSaving(false);
     setNotice(error ? { ok: false, text: `couldn't save: ${error}` } : { ok: true, text: "saved." });
@@ -196,6 +259,7 @@ export default function Admin() {
     setDropDraft(dropDraftOf(drop));
     rows.forEach((row) => row.preview && URL.revokeObjectURL(row.preview));
     setRows(rowsOf(items));
+    setGroupRows(groupRowsOf(groups));
   };
   const setOpen = async (isOpen: boolean) => {
     if (!drop) return;
@@ -217,7 +281,7 @@ export default function Admin() {
     close: { title: "close preorders now?", body: "customers won't be able to order from this drop until you reopen it.", action: "close now", run: () => setOpen(false) },
     next: {
       title: "start the next drop?",
-      body: `this ends the current drop now. the new drop copies the items and prices with 0 quantity, and stays hidden until you set its open time.${dirty ? " your unsaved changes will be discarded." : ""}`,
+      body: `this ends the current drop now. the new drop copies the items, prices and stock groups with 0 spots, and stays hidden until you set its open time.${dirty ? " your unsaved changes will be discarded." : ""}`,
       action: "start next drop",
       run: startNextDrop,
     },
@@ -256,6 +320,7 @@ export default function Admin() {
   const sold = (item: Item) => orders.reduce((sum, order) => sum + order.items
     .filter((line) => (line.item_id ? line.item_id === item.id : line.name === item.name))
     .reduce((n, line) => n + line.qty, 0), 0);
+  const groupSold = (id: string) => items.filter((i) => i.group_id === id).reduce((n, i) => n + sold(i), 0);
 
   return (
     <div className="min-h-screen bg-background px-5 py-10 md:px-10">
@@ -311,6 +376,36 @@ export default function Admin() {
                 {dropDraft.pickup_location ? ` · ${dropDraft.pickup_location}` : ""}
               </p>
             </>)}
+            <p className="mt-6 font-mono text-[11px] text-primary/60">stock groups. items in a group share its spots, and all of them sell out together.</p>
+            <ul className="mt-1 space-y-2">
+              {groupRows.map((row) => {
+                const group = row.id ? groups.find((g) => g.id === row.id) : undefined;
+                const members = rows.filter((r) => r.draft.group === row.key).map((r) => r.draft.name.trim() || "new item");
+                const label = row.draft.name.trim() || "new group";
+                return (
+                  <li key={row.key} className="rounded-md bg-background p-4">
+                    <div className="grid grid-cols-[1fr_7rem] gap-2">
+                      <label className="font-mono text-[11px] text-primary/60">group name
+                        <input className={field} value={row.draft.name} maxLength={80} placeholder="e.g. croissants" onChange={(event) => editGroup(row.key, { name: event.target.value })} />
+                      </label>
+                      <label className="font-mono text-[11px] text-primary/60">total spots
+                        <input type="number" min={0} inputMode="numeric" className={field} value={row.draft.total_qty} onChange={(event) => editGroup(row.key, { total_qty: event.target.value })} />
+                      </label>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-primary/60">
+                      <p>
+                        {group ? `sold ${groupSold(group.id)} / ${group.total_qty}` : "not saved yet"}
+                        {" · "}{members.length ? members.join(", ") : "no items yet, pick this group on an item below"}
+                      </p>
+                      <button onClick={() => removeGroup(row.key)} aria-label={`remove group ${label}`} className="underline">remove group</button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <button onClick={addGroup} className="mt-2 w-full rounded-md border border-dashed border-primary/40 py-2 font-mono text-[12px] text-primary">
+              + add stock group
+            </button>
             <p className="mt-6 font-mono text-[11px] text-primary/60">menu items</p>
             <ul className="mt-1 space-y-3">
               {rows.map((row) => {
@@ -318,6 +413,8 @@ export default function Admin() {
                 const img = row.preview ? { src: row.preview } : itemImage(d.name, d.image_url);
                 const item = row.id ? items.find((i) => i.id === row.id) : undefined;
                 const label = d.name.trim() || "new item";
+                const groupRow = d.group ? groupRows.find((g) => g.key === d.group) : undefined;
+                const groupName = groupRow?.draft.name.trim() || "new group";
                 return (
                   <li key={row.key} className="rounded-md bg-background p-4">
                     <div className="flex gap-4">
@@ -343,14 +440,26 @@ export default function Admin() {
                             <input type="number" min={0} step="0.5" inputMode="decimal" className={field} value={d.price} onChange={(event) => editItem(row.key, { price: event.target.value })} />
                           </label>
                           <label className="font-mono text-[11px] text-primary/60">total spots
-                            <input type="number" min={0} inputMode="numeric" className={field} value={d.total_qty} onChange={(event) => editItem(row.key, { total_qty: event.target.value })} />
+                            <input type="number" min={0} inputMode="numeric" className={`${field} disabled:opacity-40`} disabled={!!groupRow}
+                              title={groupRow ? `uses the ${groupName} group's spots` : undefined}
+                              value={d.total_qty} onChange={(event) => editItem(row.key, { total_qty: event.target.value })} />
                           </label>
                           <label className="font-mono text-[11px] text-primary/60">max / order
                             <input type="number" min={1} inputMode="numeric" className={field} value={d.max_per_order} onChange={(event) => editItem(row.key, { max_per_order: event.target.value })} />
                           </label>
                         </div>
+                        {groupRows.length > 0 && (
+                          <label className="block font-mono text-[11px] text-primary/60">stock group
+                            <select className={field} value={d.group} onChange={(event) => editItem(row.key, { group: event.target.value })}>
+                              <option value="">none (own spots)</option>
+                              {groupRows.map((g) => <option key={g.key} value={g.key}>{g.draft.name.trim() || "new group"}</option>)}
+                            </select>
+                          </label>
+                        )}
                         {item ? (
-                          <p className="font-mono text-[11px] text-primary/60">sold {sold(item)} / {item.total_qty}</p>
+                          <p className="font-mono text-[11px] text-primary/60">
+                            {groupRow ? `sold ${sold(item)} · shares ${groupName} spots` : `sold ${sold(item)} / ${item.total_qty}`}
+                          </p>
                         ) : (
                           <button onClick={() => removeNewItem(row)} className="font-mono text-[11px] text-primary/60 underline">remove</button>
                         )}

@@ -42,7 +42,10 @@ Deno.serve(async (req) => {
     for (const { item_id, qty } of input.items) wanted.set(item_id, (wanted.get(item_id) ?? 0) + qty);
 
     const { data: dbItems } = await db.from("drop_items").select("*").eq("drop_id", drop.id);
+    const { data: groups } = await db.from("item_groups").select("id, name").eq("drop_id", drop.id);
     const lines: { item_id: string; name: string; qty: number; price_cents: number }[] = [];
+    // Items in a group share its spots, so the combined quantity per group must fit too.
+    const groupWanted = new Map<string, { qty: number; remaining: number }>();
     let total = 0;
     for (const [item_id, qty] of wanted) {
       const it = dbItems?.find((d) => d.id === item_id);
@@ -50,8 +53,18 @@ Deno.serve(async (req) => {
       if (qty > it.max_per_order) return json({ error: `Max ${it.max_per_order} ${it.name} per order.` }, 400);
       const { data: remaining } = await db.rpc("item_remaining", { _item_id: item_id });
       if ((remaining ?? 0) < qty) return json({ error: `Only ${Math.max(0, remaining ?? 0)} ${it.name} left.` }, 409);
+      if (it.group_id) {
+        const g = groupWanted.get(it.group_id) ?? { qty: 0, remaining: remaining ?? 0 };
+        groupWanted.set(it.group_id, { ...g, qty: g.qty + qty });
+      }
       lines.push({ item_id, name: it.name, qty, price_cents: it.price_cents });
       total += qty * it.price_cents;
+    }
+    for (const [group_id, g] of groupWanted) {
+      if (g.qty > g.remaining) {
+        const name = groups?.find((x) => x.id === group_id)?.name ?? "that item";
+        return json({ error: `Only ${Math.max(0, g.remaining)} ${name} left in total.` }, 409);
+      }
     }
 
     const subtotal = total;

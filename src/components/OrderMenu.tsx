@@ -12,7 +12,7 @@ import SmsDisclosure from "@/components/SmsDisclosure";
 import { itemImage } from "@/lib/itemImage";
 import { EMAIL_RE, US_PHONE_RE } from "@/lib/contact";
 
-type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number; image_url: string | null };
+type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number; image_url: string | null; group_id: string | null };
 type DropRow = PickupFields & DropSchedule & { id: string; title: string };
 type Confirmation = {
   customer_name: string;
@@ -133,12 +133,17 @@ export default function OrderMenu() {
   }, [form.customer_name]);
   const payTotal = discountPct ? total - Math.round((total * discountPct) / 100) : total;
 
+  // Grouped items share spots, so other cart items in the same group use up this item's availability.
+  const avail = (i: Item) =>
+    Math.max(0, i.remaining - (i.group_id ? items.reduce((s, o) => s + (o.id !== i.id && o.group_id === i.group_id ? qty[o.id] ?? 0 : 0), 0) : 0));
+
   const [limitMsg, setLimitMsg] = useState<Record<string, string>>({});
   const change = (i: Item, d: number) => {
     const cur = qty[i.id] ?? 0;
     const next = cur + d;
-    if (d > 0 && next > Math.min(i.max_per_order, i.remaining)) {
-      setLimitMsg((m) => ({ ...m, [i.id]: next > i.remaining ? "no more available this week." : "that's the most you can order." }));
+    const left = avail(i);
+    if (d > 0 && next > Math.min(i.max_per_order, left)) {
+      setLimitMsg((m) => ({ ...m, [i.id]: next > left ? "no more available this week." : "that's the most you can order." }));
       return;
     }
     setLimitMsg((m) => ({ ...m, [i.id]: "" }));
@@ -152,8 +157,9 @@ export default function OrderMenu() {
   const mChange = (d: number) => {
     if (!sel) return;
     const next = mQty + d;
-    if (d > 0 && next > Math.min(sel.max_per_order, sel.remaining)) {
-      setMMsg(next > sel.remaining ? "no more available this week." : "that's the most you can order.");
+    const left = avail(sel);
+    if (d > 0 && next > Math.min(sel.max_per_order, left)) {
+      setMMsg(next > left ? "no more available this week." : "that's the most you can order.");
       return;
     }
     setMMsg("");
@@ -414,8 +420,10 @@ export default function OrderMenu() {
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
               <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
               {sel.description && <p className="mt-5 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.description}</p>}
-              {sel.remaining === 0 ? (
-                <p className="mt-10 text-center font-mono text-[13px] text-primary/70">sold out.</p>
+              {avail(sel) === 0 ? (
+                <p className="mt-10 text-center font-mono text-[13px] text-primary/70">
+                  {sel.remaining === 0 ? "sold out." : "no more available this week."}
+                </p>
               ) : (
                 <>
                   <div className="mt-10 flex items-center justify-center gap-5">
@@ -430,10 +438,10 @@ export default function OrderMenu() {
               )}
             </div>
           </div>
-          {sel.remaining > 0 && (
+          {avail(sel) > 0 && (
             <div className="sticky bottom-0 mt-auto w-full bg-background/95 px-4 pb-4 pt-2">
               <button type="button" disabled={!open}
-                onClick={() => { setQty((q) => ({ ...q, [sel.id]: mQty })); setLimitMsg((m) => ({ ...m, [sel.id]: "" })); setSel(null); }}
+                onClick={() => { setQty((q) => ({ ...q, [sel.id]: Math.min(mQty, avail(sel)) })); setLimitMsg((m) => ({ ...m, [sel.id]: "" })); setSel(null); }}
                 className="mx-auto flex w-full max-w-[760px] items-center justify-between rounded-full bg-primary px-6 py-4 font-mono text-[13px] lowercase tracking-brand text-primary-foreground disabled:opacity-50">
                 <span>{open ? "add to cart" : "preorders closed"}</span>
                 <span>{money(sel.price_cents * mQty)}</span>
