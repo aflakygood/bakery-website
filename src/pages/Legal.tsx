@@ -90,6 +90,7 @@ export function Privacy() {
           <li>your name, email address, and phone number (if you give one).</li>
           <li>what you ordered, the amount paid, and your pickup status.</li>
           <li>whether you opted in to text updates.</li>
+          <li>general visit stats (pages viewed, device and browser type, approximate location) through google analytics, which uses cookies. this is not linked to your order.</li>
         </ul>
         <p>card details go directly to our payment provider. we never receive or store your full card number.</p>
       </Section>
