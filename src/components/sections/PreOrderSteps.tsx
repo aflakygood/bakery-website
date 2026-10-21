@@ -7,7 +7,7 @@ const steps = [
     lines: [
       "a new menu drops every week.",
       "preorders open a few days before pickup.",
-      "drop dates are posted on Instagram.",
+      "drop dates are posted on Instagram and website.",
     ],
   },
   {
