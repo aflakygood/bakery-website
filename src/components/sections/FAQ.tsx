@@ -27,7 +27,7 @@ const faqs = [
   },
   {
     q: "how do i hear about upcoming drops?",
-    a: "follow @aflakygood on Instagram. drops, menus, and pickup times are posted there every week.",
+    a: "follow @aflakygood on Instagram or join our WhatsApp group. drops, menus, and pickup times are posted on both every week.",
   },
 ];
 
