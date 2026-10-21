@@ -2,6 +2,17 @@ import logoIcon from "@/assets/logo-icon.png";
 import { Instagram } from "lucide-react";
 import { Link } from "react-router-dom";
 
+const contactButton =
+  "inline-flex items-center gap-4 rounded-[6px] bg-secondary px-5 py-4 font-mono text-sm tracking-brand text-primary transition-colors hover:bg-accent";
+
+// lucide has no brand icons, so this is the WhatsApp glyph drawn as a stroke icon to match the Instagram one.
+const WhatsApp = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+    <path d="M3 21l1.65-4.8A9 9 0 1 1 8 19.5L3 21z" />
+    <path d="M9 10c0 3 2 5 5 5l1.2-1.4a.6.6 0 0 0-.1-.9l-1.5-.8a.6.6 0 0 0-.7.1l-.4.4c-.9-.4-1.6-1.1-2-2l.4-.4a.6.6 0 0 0 .1-.7l-.8-1.5a.6.6 0 0 0-.9-.1L9 10z" />
+  </svg>
+);
+
 export default function Footer({ showContact = false }: { showContact?: boolean }) {
   return (
     <footer id="contact" className="relative bg-stripes pt-10 md:pt-16">
@@ -15,17 +26,28 @@ export default function Footer({ showContact = false }: { showContact?: boolean 
                 drop a dm.
               </h2>
               <p className="mt-6 max-w-md font-mono text-[15px] leading-relaxed tracking-brand text-primary/70">
-                preorders, weekly drops, and pickup details — all live on instagram.
+                preorders, weekly drops, and pickup details — all live on instagram and whatsapp.
               </p>
-              <a
-                href="https://www.instagram.com/aflakygood/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-8 inline-flex items-center gap-4 rounded-[6px] bg-secondary px-5 py-4 font-mono text-sm tracking-brand text-primary transition-colors hover:bg-accent"
-              >
-                <Instagram className="h-5 w-5" />
-                @aflakygood
-              </a>
+              <div className="mt-8 flex flex-col items-start gap-3">
+                <a
+                  href="https://www.instagram.com/aflakygood/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={contactButton}
+                >
+                  <Instagram className="h-5 w-5" />
+                  @aflakygood
+                </a>
+                <a
+                  href="https://chat.whatsapp.com/JyekSKH1fs2D863sNHgo9Q"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={contactButton}
+                >
+                  <WhatsApp className="h-5 w-5" />
+                  join whatsapp group
+                </a>
+              </div>
             </div>
           )}
           <div className={`flex flex-col items-center justify-between gap-4 md:flex-row ${showContact ? "pt-6" : ""}`}>
