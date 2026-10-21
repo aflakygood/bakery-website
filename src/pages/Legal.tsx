@@ -67,7 +67,7 @@ export function Terms() {
           <li><span className="font-bold">help:</span> reply <span className="normal-case">HELP</span> or email {mail}.</li>
           <li>carriers are not liable for delayed or undelivered messages.</li>
         </ul>
-        <p>see our <Link to="/privacy" className="underline underline-offset-2">privacy policy</Link> for how we handle your phone number.</p>
+        <p>see our <Link to="/privacy" className="underline underline-offset-2">privacy policy</Link> for how we handle your contact details.</p>
       </Section>
       <Section title="changes">
         <p>we may update these terms from time to time. the date at the top shows when they last changed.</p>
@@ -87,7 +87,7 @@ export function Privacy() {
       </p>
       <Section title="what we collect">
         <ul>
-          <li>your name and phone number.</li>
+          <li>your name, email address, and phone number (if you give one).</li>
           <li>what you ordered, the amount paid, and your pickup status.</li>
           <li>whether you opted in to text updates.</li>
         </ul>
@@ -95,7 +95,7 @@ export function Privacy() {
       </Section>
       <Section title="how we use it">
         <ul>
-          <li>to prepare your order and confirm your pickup.</li>
+          <li>to prepare your order and email your order confirmation and pickup details.</li>
           <li>to text you order and pickup updates, only if you opted in.</li>
           <li>to contact you about a problem with your order.</li>
         </ul>
@@ -107,7 +107,7 @@ export function Privacy() {
         </p>
         <p>
           we never sell your information. we only share it with the service providers that run this website, process payments,
-          and deliver text messages, and only so they can do that job.
+          and deliver emails and text messages, and only so they can do that job.
         </p>
         <p>reply <span className="normal-case">STOP</span> at any time to stop texts, or <span className="normal-case">HELP</span> for help.</p>
       </Section>

@@ -2,13 +2,13 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 import { discountCents, findDiscount } from "../_shared/discount.ts";
-
-const US_PHONE = /^[2-9]\d{2}[2-9]\d{6}$/;
+import { EMAIL_RE, US_PHONE_RE } from "../_shared/contact.ts";
 
 const Body = z.object({
   drop_id: z.string().uuid(),
   customer_name: z.string().trim().min(1).max(100),
-  phone: z.string().trim().regex(US_PHONE),
+  email: z.string().trim().max(254).regex(EMAIL_RE),
+  phone: z.union([z.literal(""), z.string().trim().regex(US_PHONE_RE)]).optional().default(""),
   sms_opt_in: z.boolean().optional().default(false),
   items: z.array(z.object({ item_id: z.string().uuid(), qty: z.number().int().min(1).max(50) })).min(1).max(20),
 });
@@ -21,10 +21,14 @@ Deno.serve(async (req) => {
   try {
     const parsed = Body.safeParse(await req.json());
     if (!parsed.success) {
-      const phoneInvalid = parsed.error.issues.some((issue) => issue.path[0] === "phone");
-      return json({ error: phoneInvalid ? "Enter a valid 10-digit US phone number, numbers only (e.g. 4255550123)." : "Please check your details and try again." }, 400);
+      const field = parsed.error.issues[0]?.path[0];
+      const message = field === "email" ? "Enter a valid email address (e.g. name@example.com)."
+        : field === "phone" ? "Enter a valid 10-digit US phone number, numbers only (e.g. 4255550123)."
+        : "Please check your details and try again.";
+      return json({ error: message }, 400);
     }
     const input = parsed.data;
+    if (input.sms_opt_in && !input.phone) return json({ error: "Add your phone number to get text updates." }, 400);
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: drop } = await db.from("drops").select("*").eq("id", input.drop_id).maybeSingle();
@@ -56,7 +60,7 @@ Deno.serve(async (req) => {
     const customerName = discount?.cleanName || input.customer_name;
 
     const { data: order, error: oErr } = await db.from("orders").insert({
-      drop_id: drop.id, customer_name: customerName, email: "", phone: input.phone, sms_opt_in: input.sms_opt_in,
+      drop_id: drop.id, customer_name: customerName, email: input.email, phone: input.phone, sms_opt_in: input.sms_opt_in,
       items: lines, total_cents: total, subtotal_cents: subtotal, status: "pending",
       discount_code: discount?.code ?? null, discount_percent: discount?.percent ?? null,
     }).select("id").single();
