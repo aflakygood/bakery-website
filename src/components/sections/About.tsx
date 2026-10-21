@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 // Gallery photos, shown in filename order.
-const photos = import.meta.glob<string>("@/assets/gallery/*.jpg", { eager: true, import: "default" });
+const photos = import.meta.glob<string>("@/assets/gallery/*.webp", { eager: true, import: "default" });
 const alts: Record<string, string> = {
   "01-croissant": "croissant",
   "02-corn-cheese-focaccia": "corn and cheese focaccia",
@@ -18,9 +18,11 @@ const alts: Record<string, string> = {
   "11-sourdough": "sourdough bread",
   "12-pain-au-chocolat": "pain au chocolat",
   "13-olive-corn-focaccia": "olive and corn focaccia",
+  "14-tiramisu-danish": "tiramisu danish",
+  "15-multigrain-sourdough": "multigrain sourdough",
 };
 const gallery = Object.keys(photos).sort().map((path) => {
-  const name = path.split("/").pop()!.replace(/\.jpg$/, "");
+  const name = path.split("/").pop()!.replace(/\.webp$/, "");
   return { src: photos[path], alt: alts[name] ?? "a flaky good. bake" };
 });
 
