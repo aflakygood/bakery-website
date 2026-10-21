@@ -25,7 +25,7 @@ export default function Nav() {
         <a href="#top" className="flex shrink-0 items-center gap-2" aria-label="a flaky good.">
           <img src={logoIcon} alt="a flaky good." className="h-11 w-11 md:h-12 md:w-12" />
         </a>
-        <div className="flex items-center gap-[35px]">
+        <div className="flex items-center gap-7">
           <Link to="/preorder"
             className="rounded-[6px] border border-primary px-4 py-2 font-mono text-[14px] lowercase tracking-brand text-primary transition-colors hover:bg-primary hover:text-primary-foreground md:px-5 md:py-2.5 md:text-[15px]">
             preorder
