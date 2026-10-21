@@ -12,7 +12,7 @@ import SmsDisclosure from "@/components/SmsDisclosure";
 import { itemImage } from "@/lib/itemImage";
 import { EMAIL_RE, US_PHONE_RE } from "@/lib/contact";
 
-type Item = { id: string; name: string; description: string; price_cents: number; min_per_order: number; max_per_order: number; remaining: number; image_url: string | null; group_id: string | null };
+type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; min_per_order: number; max_per_order: number; remaining: number; image_url: string | null; group_id: string | null };
 type DropRow = PickupFields & DropSchedule & { id: string; title: string };
 type Confirmation = {
   customer_name: string;
@@ -438,6 +438,12 @@ export default function OrderMenu() {
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
               <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
               {sel.description && <p className="mt-5 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.description}</p>}
+              {sel.ingredients?.trim() && (
+                <div className="mt-6">
+                  <h4 className="font-mono text-[11px] uppercase tracking-[0.18em] text-primary/60">ingredients</h4>
+                  <p className="mt-2 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.ingredients.trim()}</p>
+                </div>
+              )}
               {avail(sel) === 0 ? (
                 <p className="mt-10 text-center font-mono text-[13px] text-primary/70">
                   {sel.remaining === 0 ? "sold out." : "no more available this week."}

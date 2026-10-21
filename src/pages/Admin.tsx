@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; created_at: string };
-type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null };
+type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null };
 // Items in a stock group share the group's spots instead of having their own.
 type Group = { id: string; name: string; total_qty: number; sort: number };
 type Drop = PickupFields & DropSchedule & { id: string; title: string };
@@ -26,7 +26,7 @@ const phaseLabel = { upcoming: "not live yet", open: "taking preorders", ended: 
 
 type DropDraft = { opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
 // group is the key of a GroupRow, or "" when the item has its own spots.
-type ItemDraft = { name: string; price: string; total_qty: string; min_per_order: string; max_per_order: string; description: string; image_url: string | null; group: string };
+type ItemDraft = { name: string; price: string; total_qty: string; min_per_order: string; max_per_order: string; description: string; ingredients: string; image_url: string | null; group: string };
 type GroupDraft = { name: string; total_qty: string };
 type GroupRow = { key: string; id: string | null; draft: GroupDraft };
 // One editable menu row. id is null for items added here that haven't been saved yet.
@@ -46,13 +46,14 @@ const itemDraftOf = (i: Item): ItemDraft => ({
   min_per_order: String(i.min_per_order ?? 1),
   max_per_order: String(i.max_per_order),
   description: i.description ?? "",
+  ingredients: i.ingredients ?? "",
   image_url: i.image_url ?? null,
   group: i.group_id ?? "",
 });
 const groupDraftOf = (g: Group): GroupDraft => ({ name: g.name, total_qty: String(g.total_qty) });
 const groupRowsOf = (groups: Group[]): GroupRow[] => groups.map((g) => ({ key: g.id, id: g.id, draft: groupDraftOf(g) }));
 const rowsOf = (items: Item[]): Row[] => items.map((item) => ({ key: item.id, id: item.id, draft: itemDraftOf(item), file: null, preview: null }));
-const blankDraft: ItemDraft = { name: "", price: "", total_qty: "0", min_per_order: "1", max_per_order: "2", description: "", image_url: null, group: "" };
+const blankDraft: ItemDraft = { name: "", price: "", total_qty: "0", min_per_order: "1", max_per_order: "2", description: "", ingredients: "", image_url: null, group: "" };
 const photoTypes: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 const same = (a: object, b: object) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -195,7 +196,7 @@ export default function Admin() {
     }
 
     const changed = rows.filter(rowChanged);
-    const fields: Record<string, Pick<Item, "name" | "price_cents" | "total_qty" | "min_per_order" | "max_per_order" | "description">> = {};
+    const fields: Record<string, Pick<Item, "name" | "price_cents" | "total_qty" | "min_per_order" | "max_per_order" | "description" | "ingredients">> = {};
     for (const row of changed) {
       const d = row.draft, name = d.name.trim();
       if (!name) return setNotice({ ok: false, text: "every item needs a name." });
@@ -206,7 +207,7 @@ export default function Admin() {
       if (!Number.isInteger(max) || max < 1) return setNotice({ ok: false, text: `max / order for ${name} must be at least 1.` });
       if (!Number.isInteger(min) || min < 1) return setNotice({ ok: false, text: `min / order for ${name} must be at least 1.` });
       if (min > max) return setNotice({ ok: false, text: `min / order for ${name} can't be more than max / order.` });
-      fields[row.key] = { name, price_cents: Math.round(price * 100), total_qty: qty, min_per_order: min, max_per_order: max, description: d.description };
+      fields[row.key] = { name, price_cents: Math.round(price * 100), total_qty: qty, min_per_order: min, max_per_order: max, description: d.description, ingredients: d.ingredients.trim() };
     }
 
     setSaving(true);
@@ -473,6 +474,10 @@ export default function Admin() {
                     </div>
                     <textarea rows={3} placeholder="description shown to customers" aria-label={`description for ${label}`} className={`${field} mt-3`}
                       value={d.description} onChange={(event) => editItem(row.key, { description: event.target.value })} />
+                    <label className="mt-3 block font-mono text-[11px] text-primary/60">ingredients
+                      <textarea rows={2} placeholder="comma separated, shown on the details page" aria-label={`ingredients for ${label}`} className={`${field} mt-1`}
+                        value={d.ingredients} onChange={(event) => editItem(row.key, { ingredients: event.target.value })} />
+                    </label>
                   </li>
                 );
               })}
