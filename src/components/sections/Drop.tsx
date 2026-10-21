@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Calendar, MapPin, ArrowRight } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
-import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
+import { closesLabel, dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import cover from "@/assets/drop-cover.jpg";
 
 type DropRow = PickupFields & DropSchedule & { id: string; title: string };
@@ -49,6 +49,13 @@ export default function Drop() {
               <p aria-disabled="true"
                 className="mt-7 flex items-center justify-center rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground opacity-50">
                 {phase === "ended" ? "sold out" : "preorders closed"}
+              </p>
+            )}
+            {phase === "open" && drop?.closes_at && (
+              <p className="mt-4 flex justify-center">
+                <span className="rounded-full bg-background px-4 py-1.5 font-mono text-[13px] lowercase tracking-brand text-primary md:text-[14px]">
+                  preorder closes on <span className="font-semibold">{closesLabel(drop.closes_at)}</span>
+                </span>
               </p>
             )}
           </div>
