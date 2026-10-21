@@ -63,7 +63,7 @@ const emailError = (email: string) => {
 };
 const PHONE_HINT = "e.g. 4255550123";
 const phoneError = (phone: string, required = false) => {
-  if (!phone) return required ? `Add your phone number to get text updates — 10 digits, numbers only (${PHONE_HINT}).` : "";
+  if (!phone) return required ? "Enter phone number to receive order and pickup updates." : "";
   if (phone.length < 10) return `Phone number must be exactly 10 digits — you've entered ${phone.length} (${PHONE_HINT}).`;
   if (!US_PHONE_RE.test(phone)) return `Enter a valid US phone number — the area code and the next 3 digits can't start with 0 or 1 (${PHONE_HINT}).`;
   return "";
@@ -390,11 +390,11 @@ export default function OrderMenu() {
                           <Checkbox id="checkout-sms-opt-in" checked={form.sms_opt_in}
                             onCheckedChange={(v) => {
                               setForm({ ...form, sms_opt_in: v === true });
-                              if (v !== true && !form.phone) setPhoneMsg("");
+                              if (!form.phone) setPhoneMsg(v === true ? phoneError("", true) : "");
                             }}
                             aria-describedby="checkout-sms-terms"
                             className="h-5 w-5 rounded-[4px]" />
-                          receive order and pickup updates
+                          receive order and pickup updates on phone
                         </label>
                         <SmsDisclosure id="checkout-sms-terms" className="mt-1 pl-8" />
                       </div>
@@ -541,7 +541,7 @@ function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmatio
                 onCheckedChange={(v) => updateSms(v === true)}
                 aria-describedby="confirm-sms-terms"
                 className="h-5 w-5 rounded-[4px]" />
-              receive order and pickup updates
+              receive order and pickup updates on phone
             </label>
             <SmsDisclosure id="confirm-sms-terms" className="mt-1 pl-8" />
             {smsError && <p role="alert" className="mt-1.5 pl-8 font-mono text-[12px] text-destructive">{smsError}</p>}

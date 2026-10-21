@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
       return json({ error: message }, 400);
     }
     const input = parsed.data;
-    if (input.sms_opt_in && !input.phone) return json({ error: "Add your phone number to get text updates." }, 400);
+    if (input.sms_opt_in && !input.phone) return json({ error: "Enter phone number to receive order and pickup updates." }, 400);
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: drop } = await db.from("drops").select("*").eq("id", input.drop_id).maybeSingle();
