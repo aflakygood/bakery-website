@@ -359,7 +359,7 @@ export default function Admin() {
               <label className="mt-4 block font-mono text-[11px] text-primary/60">drop title (shown on the homepage)
                 <input className={field} maxLength={80} value={dropDraft.title} onChange={(event) => editDrop({ title: event.target.value })} />
               </label>
-              <p className="mt-4 font-mono text-[11px] text-primary/60">preorder window (your local time). the drop is hidden before it opens and shows sold out after it closes.</p>
+              <p className="mt-4 font-mono text-[11px] text-primary/60">preorder window (your local time). the drop is hidden before it opens. after the closing time, preorders are disabled and the site says "preorders closed". leave closes empty to keep taking orders until you close them.</p>
               <div className="mt-1 grid gap-3 sm:grid-cols-2">
                 <label className="font-mono text-[11px] text-primary/60">opens
                   <input type="datetime-local" className={field} value={dropDraft.opens_at} onChange={(event) => editDrop({ opens_at: event.target.value })} />

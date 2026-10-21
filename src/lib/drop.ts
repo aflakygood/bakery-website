@@ -19,3 +19,15 @@ export function useNow(intervalMs = 15000) {
   }, [intervalMs]);
   return now;
 }
+
+// e.g. "8pm friday oct 23" — always Maple Valley time so it reads the same for every visitor.
+export function closesLabel(closesAt: string): string {
+  const d = new Date(closesAt);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })
+      .formatToParts(d).map((p) => [p.type, p.value]),
+  );
+  const time = `${parts.hour}${parts.minute === "00" ? "" : `:${parts.minute}`}${String(parts.dayPeriod).toLowerCase()}`;
+  return `${time} ${parts.weekday} ${parts.month} ${parts.day}`.toLowerCase();
+}
