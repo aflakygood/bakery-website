@@ -8,7 +8,9 @@ import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
+import SmsDisclosure from "@/components/SmsDisclosure";
 import { itemImage } from "@/lib/itemImage";
+import { EMAIL_RE, US_PHONE_RE } from "@/lib/contact";
 
 type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number; image_url: string | null };
 type DropRow = PickupFields & DropSchedule & { id: string; title: string };
@@ -19,6 +21,9 @@ type Confirmation = {
   subtotal_cents?: number;
   discount_percent?: number | null;
   sms_opt_in: boolean;
+  has_phone?: boolean;
+  email?: string | null;
+  email_sent?: boolean;
   pickup: PickupFields | null;
   pickup_address: string | null;
 };
@@ -51,11 +56,16 @@ async function errText(error: unknown) {
   return "Something went wrong. Please try again.";
 }
 
+const emailError = (email: string) => {
+  if (!email.trim()) return "Enter your email address so we can send your order confirmation.";
+  if (!EMAIL_RE.test(email.trim())) return "Enter a valid email address (e.g. name@example.com).";
+  return "";
+};
 const PHONE_HINT = "e.g. 4255550123";
-const phoneError = (phone: string) => {
-  if (!phone) return `Enter your 10-digit US phone number, numbers only (${PHONE_HINT}).`;
+const phoneError = (phone: string, required = false) => {
+  if (!phone) return required ? `Add your phone number to get text updates — 10 digits, numbers only (${PHONE_HINT}).` : "";
   if (phone.length < 10) return `Phone number must be exactly 10 digits — you've entered ${phone.length} (${PHONE_HINT}).`;
-  if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(phone)) return `Enter a valid US phone number — the area code and the next 3 digits can't start with 0 or 1 (${PHONE_HINT}).`;
+  if (!US_PHONE_RE.test(phone)) return `Enter a valid US phone number — the area code and the next 3 digits can't start with 0 or 1 (${PHONE_HINT}).`;
   return "";
 };
 // Keeps digits only. Pasted numbers drop a leading US country code (+1); typed input is capped at 10 digits.
@@ -79,9 +89,10 @@ export default function OrderMenu() {
   const now = useNow();
   const [items, setItems] = useState<Item[]>([]);
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [form, setForm] = useState({ customer_name: "", phone: "", sms_opt_in: false });
+  const [form, setForm] = useState({ customer_name: "", email: "", phone: "", sms_opt_in: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [emailMsg, setEmailMsg] = useState("");
   const [phoneMsg, setPhoneMsg] = useState("");
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [orderRef, setOrderRef] = useState<OrderRef | null>(null);
@@ -162,16 +173,18 @@ export default function OrderMenu() {
     setError("");
     const lines = Object.entries(qty).filter(([, n]) => n > 0).map(([item_id, n]) => ({ item_id, qty: n }));
     if (!lines.length) return setError("Pick at least one item.");
-    const phoneProblem = phoneError(form.phone);
-    if (phoneProblem) {
-      setPhoneMsg(phoneProblem);
-      document.getElementById("checkout-phone")?.focus();
+    const emailProblem = emailError(form.email);
+    const phoneProblem = phoneError(form.phone, form.sms_opt_in);
+    setEmailMsg(emailProblem);
+    setPhoneMsg(phoneProblem);
+    if (emailProblem || phoneProblem) {
+      document.getElementById(emailProblem ? "checkout-email" : "checkout-phone")?.focus();
       return;
     }
     setBusy(true);
     try {
       await loadHelcim();
-      const { data, error } = await supabase.functions.invoke("create-checkout", { body: { drop_id: drop.id, ...form, items: lines } });
+      const { data, error } = await supabase.functions.invoke("create-checkout", { body: { drop_id: drop.id, ...form, email: form.email.trim(), items: lines } });
       if (error) { setError(await errText(error)); setBusy(false); load(); return; }
       const { order_id, checkoutToken } = data;
       let finished = false;
@@ -190,7 +203,7 @@ export default function OrderMenu() {
             setConfirmation(cData?.confirmation ?? {
               customer_name: discountPct ? form.customer_name.replace(/\([^()]*\)/g, " ").replace(/\s+/g, " ").trim() : form.customer_name,
               items: cartLines, total_cents: payTotal, subtotal_cents: total, discount_percent: discountPct,
-              sms_opt_in: form.sms_opt_in, pickup: drop, pickup_address: null,
+              sms_opt_in: form.sms_opt_in, has_phone: !!form.phone, pickup: drop, pickup_address: null,
             });
             setOrderRef({ order_id, checkout_token: checkoutToken });
             setQty({});
@@ -326,13 +339,24 @@ export default function OrderMenu() {
                     <div className="space-y-3 pt-5">
                       <input required maxLength={100} placeholder="name (required)" className={input} value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
                       <div>
-                        <input id="checkout-phone" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="phone number (required)"
+                        <input id="checkout-email" type="text" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} placeholder="email (required)"
+                          aria-invalid={!!emailMsg} aria-describedby={emailMsg ? "checkout-email-error" : undefined}
+                          className={cn(input, emailMsg && "border-destructive focus:border-destructive")} value={form.email}
+                          onChange={(e) => {
+                            setForm({ ...form, email: e.target.value });
+                            if (emailMsg) setEmailMsg(emailError(e.target.value));
+                          }}
+                          onBlur={() => form.email && setEmailMsg(emailError(form.email))} />
+                        {emailMsg && <p id="checkout-email-error" role="alert" className="mt-1.5 font-mono text-[12px] normal-case text-destructive">{emailMsg}</p>}
+                      </div>
+                      <div>
+                        <input id="checkout-phone" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="phone number (optional)"
                           aria-invalid={!!phoneMsg} aria-describedby={phoneMsg ? "checkout-phone-error" : undefined}
                           className={cn(input, phoneMsg && "border-destructive focus:border-destructive")} value={form.phone}
                           onChange={(e) => {
                             const { digits: phone, notice } = cleanPhone(e.target.value, form.phone);
                             setForm({ ...form, phone });
-                            setPhoneMsg(notice || (phoneMsg ? phoneError(phone) : ""));
+                            setPhoneMsg(notice || (phoneMsg ? phoneError(phone, form.sms_opt_in) : ""));
                           }}
                           onBlur={() => form.phone && setPhoneMsg(phoneError(form.phone))} />
                         {phoneMsg && <p id="checkout-phone-error" role="alert" className="mt-1.5 font-mono text-[12px] normal-case text-destructive">{phoneMsg}</p>}
@@ -340,12 +364,15 @@ export default function OrderMenu() {
                       <div className="pt-1">
                         <label htmlFor="checkout-sms-opt-in" className="flex cursor-pointer items-center gap-3 font-mono text-[15px] text-primary">
                           <Checkbox id="checkout-sms-opt-in" checked={form.sms_opt_in}
-                            onCheckedChange={(v) => setForm({ ...form, sms_opt_in: v === true })}
+                            onCheckedChange={(v) => {
+                              setForm({ ...form, sms_opt_in: v === true });
+                              if (v !== true && !form.phone) setPhoneMsg("");
+                            }}
                             aria-describedby="checkout-sms-terms"
                             className="h-5 w-5 rounded-[4px]" />
                           receive order and pickup updates
                         </label>
-                        <p id="checkout-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
+                        <SmsDisclosure id="checkout-sms-terms" className="mt-1 pl-8" />
                       </div>
                     </div>
                   )}
@@ -422,7 +449,7 @@ export default function OrderMenu() {
 function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmation; orderRef: OrderRef | null; menu: Item[]; reduceMotion: boolean }) {
   const name = c.customer_name.trim();
   // Decided once so the checkbox stays put (and can be unticked) after opting in here.
-  const [offerSms] = useState(!c.sms_opt_in && !!orderRef);
+  const [offerSms] = useState(!c.sms_opt_in && !!orderRef && c.has_phone !== false);
   const [smsOptIn, setSmsOptIn] = useState(c.sms_opt_in);
   const [smsError, setSmsError] = useState("");
   const updateSms = async (next: boolean) => {
@@ -455,6 +482,9 @@ function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmatio
             you're in{name ? ` ${name}` : ""}.
           </h2>
           <p className="mt-3 font-mono text-[17px] text-primary/75">thank you for your order.</p>
+          {c.email_sent && c.email && (
+            <p className="mt-2 font-mono text-[13px] text-primary/60">a confirmation is on its way to <span className="normal-case">{c.email}</span>.</p>
+          )}
         </div>
 
         <div className="mt-10 rounded-[6px] bg-secondary p-5 md:mt-12 md:p-6">
@@ -484,7 +514,7 @@ function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmatio
                 className="h-5 w-5 rounded-[4px]" />
               receive order and pickup updates
             </label>
-            <p id="confirm-sms-terms" className="mt-1 pl-8 font-mono text-[11px] normal-case text-primary/60">msg &amp; data rates may apply, reply STOP to opt out</p>
+            <SmsDisclosure id="confirm-sms-terms" className="mt-1 pl-8" />
             {smsError && <p role="alert" className="mt-1.5 pl-8 font-mono text-[12px] text-destructive">{smsError}</p>}
           </div>
         )}

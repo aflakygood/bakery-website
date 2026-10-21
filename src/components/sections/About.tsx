@@ -1,37 +1,30 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import image20260427 from "@/assets/gallery/20260427_201323.jpg";
-import image20260516 from "@/assets/gallery/20260516_145815.jpg";
-import image9093 from "@/assets/gallery/IMGC9093.CR3.jpg";
-import image9609 from "@/assets/gallery/IMGC9609.CR3.jpg";
-import image9696 from "@/assets/gallery/IMGC9696.CR3.jpg";
-import image0056 from "@/assets/gallery/IMGC0056_Original.jpg";
-import image0241 from "@/assets/gallery/IMGC0241_Original.jpg";
-import image0079 from "@/assets/gallery/IMGC0079_Original.jpg";
-import image0090 from "@/assets/gallery/IMGC0090_Original.jpg";
-import image9697 from "@/assets/gallery/IMGC9697.CR3.jpg";
-import image0344 from "@/assets/gallery/IMGC0344_Original.jpg";
-import image9854 from "@/assets/gallery/IMGC9854.CR3.jpg";
-import image0306 from "@/assets/gallery/IMGC0306_Original.jpg";
-import image9615 from "@/assets/gallery/IMGC9615.CR3.jpg";
 
-const gallery = [
-  { src: image20260427, alt: "A flaky good bakery creation" },
-  { src: image20260516, alt: "A flaky good bakery creation" },
-  { src: image9093, alt: "A flaky good bakery creation" },
-  { src: image9609, alt: "A flaky good bakery creation" },
-  { src: image9696, alt: "A flaky good bakery creation" },
-  { src: image0056, alt: "A flaky good bakery creation" },
-  { src: image0241, alt: "A flaky good bakery creation" },
-  { src: image0079, alt: "A flaky good bakery creation" },
-  { src: image0090, alt: "A flaky good bakery creation" },
-  { src: image9697, alt: "A flaky good bakery creation" },
-  { src: image0344, alt: "A flaky good bakery creation" },
-  { src: image9854, alt: "A flaky good bakery creation" },
-  { src: image0306, alt: "A flaky good bakery creation" },
-  { src: image9615, alt: "A flaky good bakery creation" },
-];
+// Gallery photos, shown in filename order.
+const photos = import.meta.glob<string>("@/assets/gallery/*.webp", { eager: true, import: "default" });
+const alts: Record<string, string> = {
+  "01-croissant": "croissant",
+  "02-corn-cheese-focaccia": "corn and cheese focaccia",
+  "03-basil-pesto-danish": "basil pesto danish",
+  "04-sourdough": "sourdough bread",
+  "05-eggless-fruit-tart": "eggless fruit tart",
+  "06-croissants": "croissants",
+  "07-mushroom-onion-focaccia": "mushroom and onion focaccia",
+  "08-danishes": "danishes",
+  "09-croissant": "croissant",
+  "10-corn-olive-focaccia": "corn and olive focaccia",
+  "11-sourdough": "sourdough bread",
+  "12-pain-au-chocolat": "pain au chocolat",
+  "13-olive-corn-focaccia": "olive and corn focaccia",
+  "14-tiramisu-danish": "tiramisu danish",
+  "15-multigrain-sourdough": "multigrain sourdough",
+};
+const gallery = Object.keys(photos).sort().map((path) => {
+  const name = path.split("/").pop()!.replace(/\.webp$/, "");
+  return { src: photos[path], alt: alts[name] ?? "a flaky good. bake" };
+});
 
 const pillars = [
   { t: "real ingredients.", d: "Made only with exclusively sourced ingredients — authentic, imported, highest quality French butter and flour." },

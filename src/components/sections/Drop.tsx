@@ -4,7 +4,7 @@ import { Calendar, MapPin, ArrowRight } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
-import cover from "@/assets/gallery/20260427_201323.jpg";
+import cover from "@/assets/drop-cover.jpg";
 
 type DropRow = PickupFields & DropSchedule & { id: string; title: string };
 
