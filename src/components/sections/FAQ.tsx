@@ -15,7 +15,7 @@ const faqs = [
   },
   {
     q: "do you cater?",
-    a: "yes, and we love it. we have an extended catering menu — dm @aflakygood on instagram for details.",
+    a: "yes, and we love it. we have an extended catering menu, including eggless bakes — dm @aflakygood on instagram for details.",
   },
   {
     q: "can i modify or cancel my order?",
