@@ -5,25 +5,18 @@ import PreOrderSteps from "@/components/sections/PreOrderSteps";
 import Drop from "@/components/sections/Drop";
 import FAQ from "@/components/sections/FAQ";
 import Footer from "@/components/sections/Footer";
-
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Bakery",
-  name: "a flaky good.",
-  description:
-    "Home microbakery in Maple Valley specializing in small batch laminated pastries and long-ferment sourdough breads.",
-  address: { "@type": "PostalAddress", addressLocality: "Maple Valley", addressRegion: "WA", addressCountry: "US" },
-  servesCuisine: ["French Pastry", "Sourdough"],
-};
+import Local from "@/components/sections/Local";
+import { usePageMeta } from "@/lib/seo";
 
 export default function Index() {
+  usePageMeta();
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Nav />
       <main>
         <Hero />
         <About />
+        <Local />
         <PreOrderSteps />
         <Drop />
         <FAQ />

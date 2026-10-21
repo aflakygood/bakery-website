@@ -23,7 +23,7 @@ const alts: Record<string, string> = {
 };
 const gallery = Object.keys(photos).sort().map((path) => {
   const name = path.split("/").pop()!.replace(/\.webp$/, "");
-  return { src: photos[path], alt: alts[name] ?? "a flaky good. bake" };
+  return { src: photos[path], alt: `${alts[name] ?? "bake"} — baked fresh by a flaky good., maple valley, wa` };
 });
 
 const pillars = [
