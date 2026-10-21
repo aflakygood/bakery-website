@@ -46,6 +46,7 @@ Deno.serve(async (req) => {
     const lines: { item_id: string; name: string; qty: number; price_cents: number }[] = [];
     // Items in a group share its spots, so the combined quantity per group must fit too.
     const groupWanted = new Map<string, { qty: number; remaining: number }>();
+    const remainingOf = new Map<string, number>();
     let total = 0;
     for (const [item_id, qty] of wanted) {
       const it = dbItems?.find((d) => d.id === item_id);
@@ -53,6 +54,7 @@ Deno.serve(async (req) => {
       if (qty > it.max_per_order) return json({ error: `Max ${it.max_per_order} ${it.name} per order.` }, 400);
       const { data: remaining } = await db.rpc("item_remaining", { _item_id: item_id });
       if ((remaining ?? 0) < qty) return json({ error: `Only ${Math.max(0, remaining ?? 0)} ${it.name} left.` }, 409);
+      remainingOf.set(item_id, remaining ?? 0);
       if (it.group_id) {
         const g = groupWanted.get(it.group_id) ?? { qty: 0, remaining: remaining ?? 0 };
         groupWanted.set(it.group_id, { ...g, qty: g.qty + qty });
@@ -65,6 +67,15 @@ Deno.serve(async (req) => {
         const name = groups?.find((x) => x.id === group_id)?.name ?? "that item";
         return json({ error: `Only ${Math.max(0, g.remaining)} ${name} left in total.` }, 409);
       }
+    }
+    // Below the minimum is fine only when it takes everything left (after other items sharing the group).
+    for (const line of lines) {
+      const it = dbItems!.find((d) => d.id === line.item_id)!;
+      const min = it.min_per_order ?? 1;
+      if (line.qty >= min) continue;
+      const g = it.group_id ? groupWanted.get(it.group_id) : undefined;
+      const available = g ? g.remaining - (g.qty - line.qty) : remainingOf.get(line.item_id) ?? 0;
+      if (line.qty < available) return json({ error: `Min ${min} ${it.name} per order.` }, 400);
     }
 
     const subtotal = total;

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; created_at: string };
-type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null };
+type Item = { id: string; name: string; description: string; price_cents: number; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null };
 // Items in a stock group share the group's spots instead of having their own.
 type Group = { id: string; name: string; total_qty: number; sort: number };
 type Drop = PickupFields & DropSchedule & { id: string; title: string };
@@ -26,7 +26,7 @@ const phaseLabel = { upcoming: "not live yet", open: "taking preorders", ended: 
 
 type DropDraft = { opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
 // group is the key of a GroupRow, or "" when the item has its own spots.
-type ItemDraft = { name: string; price: string; total_qty: string; max_per_order: string; description: string; image_url: string | null; group: string };
+type ItemDraft = { name: string; price: string; total_qty: string; min_per_order: string; max_per_order: string; description: string; image_url: string | null; group: string };
 type GroupDraft = { name: string; total_qty: string };
 type GroupRow = { key: string; id: string | null; draft: GroupDraft };
 // One editable menu row. id is null for items added here that haven't been saved yet.
@@ -43,6 +43,7 @@ const itemDraftOf = (i: Item): ItemDraft => ({
   name: i.name,
   price: String(i.price_cents / 100),
   total_qty: String(i.total_qty),
+  min_per_order: String(i.min_per_order ?? 1),
   max_per_order: String(i.max_per_order),
   description: i.description ?? "",
   image_url: i.image_url ?? null,
@@ -51,7 +52,7 @@ const itemDraftOf = (i: Item): ItemDraft => ({
 const groupDraftOf = (g: Group): GroupDraft => ({ name: g.name, total_qty: String(g.total_qty) });
 const groupRowsOf = (groups: Group[]): GroupRow[] => groups.map((g) => ({ key: g.id, id: g.id, draft: groupDraftOf(g) }));
 const rowsOf = (items: Item[]): Row[] => items.map((item) => ({ key: item.id, id: item.id, draft: itemDraftOf(item), file: null, preview: null }));
-const blankDraft: ItemDraft = { name: "", price: "", total_qty: "0", max_per_order: "2", description: "", image_url: null, group: "" };
+const blankDraft: ItemDraft = { name: "", price: "", total_qty: "0", min_per_order: "1", max_per_order: "2", description: "", image_url: null, group: "" };
 const photoTypes: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 const same = (a: object, b: object) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -194,16 +195,18 @@ export default function Admin() {
     }
 
     const changed = rows.filter(rowChanged);
-    const fields: Record<string, Pick<Item, "name" | "price_cents" | "total_qty" | "max_per_order" | "description">> = {};
+    const fields: Record<string, Pick<Item, "name" | "price_cents" | "total_qty" | "min_per_order" | "max_per_order" | "description">> = {};
     for (const row of changed) {
       const d = row.draft, name = d.name.trim();
       if (!name) return setNotice({ ok: false, text: "every item needs a name." });
       if (name.length > 80) return setNotice({ ok: false, text: `${name.slice(0, 20)}… is too long a name (80 characters max).` });
-      const price = Number(d.price), qty = Number(d.total_qty), max = Number(d.max_per_order);
+      const price = Number(d.price), qty = Number(d.total_qty), min = Number(d.min_per_order), max = Number(d.max_per_order);
       if (d.price === "" || !Number.isFinite(price) || price < 0) return setNotice({ ok: false, text: `check the price for ${name}.` });
       if (d.total_qty === "" || !Number.isInteger(qty) || qty < 0) return setNotice({ ok: false, text: `total spots for ${name} must be a whole number.` });
       if (!Number.isInteger(max) || max < 1) return setNotice({ ok: false, text: `max / order for ${name} must be at least 1.` });
-      fields[row.key] = { name, price_cents: Math.round(price * 100), total_qty: qty, max_per_order: max, description: d.description };
+      if (!Number.isInteger(min) || min < 1) return setNotice({ ok: false, text: `min / order for ${name} must be at least 1.` });
+      if (min > max) return setNotice({ ok: false, text: `min / order for ${name} can't be more than max / order.` });
+      fields[row.key] = { name, price_cents: Math.round(price * 100), total_qty: qty, min_per_order: min, max_per_order: max, description: d.description };
     }
 
     setSaving(true);
@@ -435,7 +438,7 @@ export default function Admin() {
                         <label className="block font-mono text-[11px] text-primary/60">name
                           <input className={field} value={d.name} maxLength={80} placeholder="e.g. cardamom bun" onChange={(event) => editItem(row.key, { name: event.target.value })} />
                         </label>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                           <label className="font-mono text-[11px] text-primary/60">price $
                             <input type="number" min={0} step="0.5" inputMode="decimal" className={field} value={d.price} onChange={(event) => editItem(row.key, { price: event.target.value })} />
                           </label>
@@ -443,6 +446,9 @@ export default function Admin() {
                             <input type="number" min={0} inputMode="numeric" className={`${field} disabled:opacity-40`} disabled={!!groupRow}
                               title={groupRow ? `uses the ${groupName} group's spots` : undefined}
                               value={d.total_qty} onChange={(event) => editItem(row.key, { total_qty: event.target.value })} />
+                          </label>
+                          <label className="font-mono text-[11px] text-primary/60" title="customers can order fewer only when that's all that's left">min / order
+                            <input type="number" min={1} inputMode="numeric" className={field} value={d.min_per_order} onChange={(event) => editItem(row.key, { min_per_order: event.target.value })} />
                           </label>
                           <label className="font-mono text-[11px] text-primary/60">max / order
                             <input type="number" min={1} inputMode="numeric" className={field} value={d.max_per_order} onChange={(event) => editItem(row.key, { max_per_order: event.target.value })} />

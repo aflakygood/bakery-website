@@ -12,7 +12,7 @@ import SmsDisclosure from "@/components/SmsDisclosure";
 import { itemImage } from "@/lib/itemImage";
 import { EMAIL_RE, US_PHONE_RE } from "@/lib/contact";
 
-type Item = { id: string; name: string; description: string; price_cents: number; max_per_order: number; remaining: number; image_url: string | null; group_id: string | null };
+type Item = { id: string; name: string; description: string; price_cents: number; min_per_order: number; max_per_order: number; remaining: number; image_url: string | null; group_id: string | null };
 type DropRow = PickupFields & DropSchedule & { id: string; title: string };
 type Confirmation = {
   customer_name: string;
@@ -137,10 +137,16 @@ export default function OrderMenu() {
   const avail = (i: Item) =>
     Math.max(0, i.remaining - (i.group_id ? items.reduce((s, o) => s + (o.id !== i.id && o.group_id === i.group_id ? qty[o.id] ?? 0 : 0), 0) : 0));
 
+  // Some items have a minimum per order, waived when fewer than that are left.
+  const minFor = (i: Item) => Math.max(1, Math.min(i.min_per_order ?? 1, avail(i)));
+  const belowMin = (i: Item, n: number) => n > 0 && n < minFor(i);
+
   const [limitMsg, setLimitMsg] = useState<Record<string, string>>({});
   const change = (i: Item, d: number) => {
     const cur = qty[i.id] ?? 0;
-    const next = cur + d;
+    let next = cur + d;
+    if (d > 0 && cur === 0) next = minFor(i);
+    if (d < 0 && belowMin(i, next)) next = 0;
     const left = avail(i);
     if (d > 0 && next > Math.min(i.max_per_order, left)) {
       setLimitMsg((m) => ({ ...m, [i.id]: next > left ? "no more available this week." : "that's the most you can order." }));
@@ -153,7 +159,7 @@ export default function OrderMenu() {
   const [sel, setSel] = useState<Item | null>(null);
   const [mQty, setMQty] = useState(1);
   const [mMsg, setMMsg] = useState("");
-  const openItem = (i: Item) => { setSel(i); setMQty(Math.max(1, qty[i.id] ?? 1)); setMMsg(""); };
+  const openItem = (i: Item) => { setSel(i); setMQty(Math.max(minFor(i), qty[i.id] ?? 0)); setMMsg(""); };
   const mChange = (d: number) => {
     if (!sel) return;
     const next = mQty + d;
@@ -163,7 +169,7 @@ export default function OrderMenu() {
       return;
     }
     setMMsg("");
-    setMQty(Math.max(1, next));
+    setMQty(Math.max(minFor(sel), next));
   };
   useEffect(() => {
     if (!sel) return;
@@ -179,6 +185,11 @@ export default function OrderMenu() {
     setError("");
     const lines = Object.entries(qty).filter(([, n]) => n > 0).map(([item_id, n]) => ({ item_id, qty: n }));
     if (!lines.length) return setError("Pick at least one item.");
+    const short = items.find((i) => belowMin(i, qty[i.id] ?? 0));
+    if (short) {
+      setLimitMsg((m) => ({ ...m, [short.id]: `min ${short.min_per_order} per order.` }));
+      return setError(`${short.name}: min ${short.min_per_order} per order.`);
+    }
     const emailProblem = emailError(form.email);
     const phoneProblem = phoneError(form.phone, form.sms_opt_in);
     setEmailMsg(emailProblem);
@@ -334,6 +345,7 @@ export default function OrderMenu() {
                         <h3 className="mt-[18px] font-display text-base font-black leading-none tracking-brand text-primary md:text-lg md:leading-none">{i.name.toLowerCase()}.</h3>
                         <p className="mt-1 font-mono text-[11px] text-primary/65 md:text-[12px]">
                           {i.remaining === 0 ? "sold out" : money(i.price_cents)}
+                          {i.remaining > 0 && i.min_per_order > 1 && ` · min ${i.min_per_order}`}
                         </p>
                          </Button>
                         {limitMsg[i.id] && <p className="mt-2 font-mono text-[11px] text-destructive">{limitMsg[i.id]}</p>}
@@ -418,7 +430,7 @@ export default function OrderMenu() {
               className="aspect-[4/5] max-h-[70vh] w-full object-cover" />
             <div className="px-6 py-8">
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
-              <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
+              <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}{sel.min_per_order > 1 && ` · min ${sel.min_per_order} per order`}</p>
               {sel.description && <p className="mt-5 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.description}</p>}
               {avail(sel) === 0 ? (
                 <p className="mt-10 text-center font-mono text-[13px] text-primary/70">
@@ -427,7 +439,7 @@ export default function OrderMenu() {
               ) : (
                 <>
                   <div className="mt-10 flex items-center justify-center gap-5">
-                    <button type="button" aria-label="less" onClick={() => mChange(-1)} disabled={mQty <= 1}
+                    <button type="button" aria-label="less" onClick={() => mChange(-1)} disabled={mQty <= minFor(sel)}
                       className="rounded-[6px] bg-secondary px-3 py-2 text-primary disabled:opacity-40"><Minus className="h-4 w-4" /></button>
                     <span className="w-6 text-center font-mono text-[15px] text-primary">{mQty}</span>
                     <button type="button" aria-label="more" onClick={() => mChange(1)}
