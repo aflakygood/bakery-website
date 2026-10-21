@@ -10,14 +10,6 @@ const faqs = [
     a: "pickup is in maple valley, wa. the exact address is shared via message once your order is confirmed.",
   },
   {
-    q: "which areas do you serve?",
-    a: "we're a maple valley, wa bakery, and pickup is in maple valley. neighbors from covington, black diamond, ravensdale, enumclaw, hobart, kent, auburn and renton regularly preorder and pick up here.",
-  },
-  {
-    q: "what do you bake?",
-    a: "sourdough bread, multigrain sourdough, sourdough focaccia, butter croissants, pain au chocolat, danishes and eggless fruit tarts, plus seasonal bakes. the menu changes every week.",
-  },
-  {
     q: "do you ship or deliver?",
     a: "not at this time. everything is baked fresh for same-day pickup to keep quality and texture at their best.",
   },

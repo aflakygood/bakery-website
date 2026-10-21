@@ -5,7 +5,6 @@ import PreOrderSteps from "@/components/sections/PreOrderSteps";
 import Drop from "@/components/sections/Drop";
 import FAQ from "@/components/sections/FAQ";
 import Footer from "@/components/sections/Footer";
-import Local from "@/components/sections/Local";
 import { usePageMeta } from "@/lib/seo";
 
 export default function Index() {
@@ -16,7 +15,6 @@ export default function Index() {
       <main>
         <Hero />
         <About />
-        <Local />
         <PreOrderSteps />
         <Drop />
         <FAQ />
