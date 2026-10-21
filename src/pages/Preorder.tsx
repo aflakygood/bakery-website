@@ -4,9 +4,15 @@ import { ArrowLeft } from "lucide-react";
 import OrderMenu from "@/components/OrderMenu";
 import Footer from "@/components/sections/Footer";
 import logoIcon from "@/assets/logo-icon-v2.png";
+import { usePageMeta } from "@/lib/seo";
 
 export default function Preorder() {
-  useEffect(() => { window.scrollTo(0, 0); document.title = "preorder · a flaky good."; }, []);
+  usePageMeta({
+    title: "preorder fresh sourdough, croissants & focaccia · Maple Valley, WA · a flaky good.",
+    description: "Preorder this week's fresh-baked croissants, pain au chocolat, sourdough bread and focaccia from a flaky good., a Maple Valley, WA microbakery. Local pickup for Covington, Black Diamond, Enumclaw, Ravensdale and nearby.",
+    path: "/preorder",
+  });
+  useEffect(() => { window.scrollTo(0, 0); }, []);
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="mx-auto grid max-w-[1100px] grid-cols-[1fr_auto_1fr] items-center px-6 py-4 md:px-10">

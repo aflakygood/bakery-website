@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import Footer from "@/components/sections/Footer";
 import logoIcon from "@/assets/logo-icon-v2.png";
+import { usePageMeta } from "@/lib/seo";
 
 const CONTACT = "aflakygood@gmail.com";
 const UPDATED = "October 20, 2026";
@@ -20,9 +21,9 @@ function Section({ id, title, children }: { id?: string; title: string; children
   );
 }
 
-function LegalPage({ title, children }: { title: string; children: ReactNode }) {
+function LegalPage({ title, path, children }: { title: string; path: string; children: ReactNode }) {
+  usePageMeta({ title: `${title} · a flaky good. Maple Valley, WA`, description: `${title} for a flaky good., a licensed microbakery in Maple Valley, WA.`, path });
   useEffect(() => {
-    document.title = `${title} · a flaky good.`;
     const target = window.location.hash && document.getElementById(window.location.hash.slice(1));
     if (target) target.scrollIntoView();
     else window.scrollTo(0, 0);
@@ -47,7 +48,7 @@ function LegalPage({ title, children }: { title: string; children: ReactNode }) 
 
 export function Terms() {
   return (
-    <LegalPage title="terms">
+    <LegalPage title="terms" path="/terms">
       <p className="font-mono text-[15px] leading-relaxed text-primary/80">
         these terms cover your use of the a flaky good. website, preorders, and our text message program.
         by placing an order or opting in to texts, you agree to them.
@@ -81,7 +82,7 @@ export function Terms() {
 
 export function Privacy() {
   return (
-    <LegalPage title="privacy">
+    <LegalPage title="privacy" path="/privacy">
       <p className="font-mono text-[15px] leading-relaxed text-primary/80">
         a flaky good. is a small microbakery in Maple Valley, WA. we only collect what we need to make and hand over your order.
       </p>

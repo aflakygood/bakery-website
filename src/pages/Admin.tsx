@@ -4,6 +4,7 @@ import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { itemImage } from "@/lib/itemImage";
+import { usePageMeta } from "@/lib/seo";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -59,6 +60,7 @@ const photoTypes: Record<string, string> = { "image/png": "png", "image/jpeg": "
 const same = (a: object, b: object) => JSON.stringify(a) === JSON.stringify(b);
 
 export default function Admin() {
+  usePageMeta({ title: "admin · a flaky good.", path: "/admin", noindex: true });
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);

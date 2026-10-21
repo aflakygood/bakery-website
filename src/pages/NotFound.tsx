@@ -1,8 +1,10 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { usePageMeta } from "@/lib/seo";
 
 const NotFound = () => {
   const location = useLocation();
+  usePageMeta({ title: "page not found · a flaky good.", path: location.pathname, noindex: true });
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
