@@ -325,11 +325,12 @@ export default function OrderMenu() {
                                  <Button type="button" variant="ghost" size="icon"
                                    aria-label={`less ${i.name}`} onClick={() => change(i, -1)} disabled={!open}
                                    className="h-11 w-10 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
-                                   {qty[i.id] === 1 ? <Trash2 /> : <Minus />}
+                                   {(qty[i.id] === 1 || belowMin(i, qty[i.id] - 1)) ? <Trash2 /> : <Minus />}
                                  </Button>
                                  <span className="min-w-0 flex-1 text-center font-mono text-[14px]" aria-live="polite" aria-atomic="true">
                                    <motion.span key={qty[i.id]} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="block">
                                      {qty[i.id]}
+                                     {i.min_per_order > 1 && qty[i.id] === i.min_per_order && <span className="ml-1 text-[10px] opacity-75">(min)</span>}
                                    </motion.span>
                                  </span>
                                </>
@@ -345,7 +346,6 @@ export default function OrderMenu() {
                         <h3 className="mt-[18px] font-display text-base font-black leading-none tracking-brand text-primary md:text-lg md:leading-none">{i.name.toLowerCase()}.</h3>
                         <p className="mt-1 font-mono text-[11px] text-primary/65 md:text-[12px]">
                           {i.remaining === 0 ? "sold out" : money(i.price_cents)}
-                          {i.remaining > 0 && i.min_per_order > 1 && ` · min ${i.min_per_order}`}
                         </p>
                          </Button>
                         {limitMsg[i.id] && <p className="mt-2 font-mono text-[11px] text-destructive">{limitMsg[i.id]}</p>}
@@ -430,7 +430,7 @@ export default function OrderMenu() {
               className="aspect-[4/5] max-h-[70vh] w-full object-cover" />
             <div className="px-6 py-8">
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
-              <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}{sel.min_per_order > 1 && ` · min ${sel.min_per_order} per order`}</p>
+              <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
               {sel.description && <p className="mt-5 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.description}</p>}
               {avail(sel) === 0 ? (
                 <p className="mt-10 text-center font-mono text-[13px] text-primary/70">
@@ -441,7 +441,10 @@ export default function OrderMenu() {
                   <div className="mt-10 flex items-center justify-center gap-5">
                     <button type="button" aria-label="less" onClick={() => mChange(-1)} disabled={mQty <= minFor(sel)}
                       className="rounded-[6px] bg-secondary px-3 py-2 text-primary disabled:opacity-40"><Minus className="h-4 w-4" /></button>
-                    <span className="w-6 text-center font-mono text-[15px] text-primary">{mQty}</span>
+                    <span className="min-w-6 whitespace-nowrap text-center font-mono text-[15px] text-primary">
+                      {mQty}
+                      {sel.min_per_order > 1 && mQty === sel.min_per_order && <span className="ml-1 text-[11px] text-primary/60">(min)</span>}
+                    </span>
                     <button type="button" aria-label="more" onClick={() => mChange(1)}
                       className="rounded-[6px] bg-secondary px-3 py-2 text-primary"><Plus className="h-4 w-4" /></button>
                   </div>
