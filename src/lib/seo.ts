@@ -3,7 +3,7 @@ import { useEffect } from "react";
 export const SITE_URL = "https://www.aflakygood.com";
 export const DEFAULT_TITLE = "a flaky good. — Maple Valley, WA microbakery · sourdough, croissants & focaccia";
 export const DEFAULT_DESCRIPTION =
-  "Maple Valley, WA home microbakery. Fresh croissants, pain au chocolat, long-ferment sourdough bread and focaccia, baked to order. Weekly online preorders with pickup for Covington, Black Diamond, Enumclaw, Ravensdale and nearby.";
+  "Maple Valley, WA licensed microbakery. Fresh croissants, pain au chocolat, long-ferment sourdough bread and focaccia, baked to order. Weekly online preorders with pickup for Covington, Black Diamond, Enumclaw, Ravensdale and nearby.";
 
 type Meta = { title?: string; description?: string; path?: string; noindex?: boolean };
 

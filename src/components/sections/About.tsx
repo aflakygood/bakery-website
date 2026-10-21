@@ -133,7 +133,7 @@ export default function About() {
           className="mx-auto max-w-3xl py-[100px] text-center"
         >
           <p className="mt-6 font-mono text-[20px] leading-relaxed tracking-brand text-primary md:text-[23px]">
-            a flaky good is a home microbakery in maple valley - washington, built around small batch laminated pastries, long-ferment sourdough breads, and seasonal bakes — made with warmth, intention, and a lot of obsession.
+            a flaky good is a licensed microbakery in maple valley - washington, built around small batch laminated pastries, long-ferment sourdough breads, and seasonal bakes — made with warmth, intention, and a lot of obsession.
           </p>
         </motion.div>
       </div>

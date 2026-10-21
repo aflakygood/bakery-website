@@ -22,7 +22,7 @@ function Section({ id, title, children }: { id?: string; title: string; children
 }
 
 function LegalPage({ title, path, children }: { title: string; path: string; children: ReactNode }) {
-  usePageMeta({ title: `${title} · a flaky good. Maple Valley, WA`, description: `${title} for a flaky good., a home microbakery in Maple Valley, WA.`, path });
+  usePageMeta({ title: `${title} · a flaky good. Maple Valley, WA`, description: `${title} for a flaky good., a licensed microbakery in Maple Valley, WA.`, path });
   useEffect(() => {
     const target = window.location.hash && document.getElementById(window.location.hash.slice(1));
     if (target) target.scrollIntoView();
