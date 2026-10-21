@@ -469,7 +469,7 @@ export default function OrderMenu() {
             <div className="sticky bottom-0 mt-auto w-full bg-background/95 px-4 pb-4 pt-2">
               <button type="button" disabled={!open}
                 onClick={() => { setQty((q) => ({ ...q, [sel.id]: Math.min(mQty, avail(sel)) })); setLimitMsg((m) => ({ ...m, [sel.id]: "" })); setSel(null); }}
-                className="mx-auto flex w-full max-w-[760px] items-center justify-between rounded-full bg-primary px-6 py-4 font-mono text-[13px] lowercase tracking-brand text-primary-foreground disabled:opacity-50">
+                className="mx-auto flex w-full max-w-[760px] items-center justify-between rounded-[6px] bg-primary px-6 py-4 font-mono text-[15px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
                 <span>{open ? "add to cart" : "preorders closed"}</span>
                 <span>{money(sel.price_cents * mQty)}</span>
               </button>
