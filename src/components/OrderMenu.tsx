@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
-import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
+import { closesLabel, dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import SmsDisclosure from "@/components/SmsDisclosure";
@@ -284,7 +284,10 @@ export default function OrderMenu() {
               <span className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-mono text-[11px] lowercase tracking-brand",
                 open ? "bg-primary text-primary-foreground" : "bg-background/90 text-primary")}>
                 <span className={cn("rounded-full", open ? "h-2 w-2 animate-pulse bg-primary-foreground" : "h-1.5 w-1.5 bg-primary opacity-40")} />
-                {open ? "preorders open" : soldOut ? "sold out" : "preorders closed"}
+                <span>
+                  {open ? "preorders open" : soldOut ? "sold out" : "preorders closed"}
+                  {open && drop?.closes_at && <> · preorder closes on <span className="font-semibold">{closesLabel(drop.closes_at)}</span></>}
+                </span>
               </span>
               {!isSupabaseConfigured ? (
                 <p className="mt-4 font-mono text-[15px] leading-relaxed text-primary/80">preorders are coming soon.</p>
