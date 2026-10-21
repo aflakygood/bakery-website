@@ -115,7 +115,8 @@ export default function OrderMenu() {
   useEffect(() => { load(); }, []);
 
   const phase = drop ? dropPhase(drop, now) : "upcoming";
-  const soldOut = phase === "ended" || (items.length > 0 && items.every((i) => i.remaining === 0));
+  const closed = phase === "ended" || phase === "closed";
+  const soldOut = !closed && items.length > 0 && items.every((i) => i.remaining === 0);
   const open = phase === "open" && !soldOut;
   const total = useMemo(() => items.reduce((s, i) => s + (qty[i.id] ?? 0) * i.price_cents, 0), [items, qty]);
 

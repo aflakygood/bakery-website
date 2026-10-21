@@ -53,7 +53,7 @@ export default function Drop() {
             ) : (
               <p aria-disabled="true"
                 className="mt-7 flex items-center justify-center rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground opacity-50">
-                {phase === "ended" ? "sold out" : "preorders closed"}
+                preorders closed
               </p>
             )}
           </div>
