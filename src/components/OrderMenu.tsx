@@ -350,7 +350,7 @@ export default function OrderMenu() {
                         </div>
                          <Button type="button" variant="ghost" onClick={() => openItem(i)} className="block h-auto w-full whitespace-normal rounded-none p-0 text-left hover:bg-transparent" aria-label={`details ${i.name}`}>
                         <h3 className="mt-[18px] font-display text-base font-black leading-none tracking-brand text-primary md:text-lg md:leading-none">{i.name.toLowerCase()}.</h3>
-                        <p className="mt-1 font-mono text-[11px] text-primary/65 md:text-[12px]">
+                        <p className="mt-1 font-mono text-[12px] text-primary/65 md:text-[13px]">
                           {money(i.price_cents)}
                         </p>
                          </Button>
