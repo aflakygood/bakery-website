@@ -8,7 +8,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; created_at: string };
+type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; is_test: boolean; created_at: string };
 type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null };
 // Items in a stock group share the group's spots instead of having their own.
 type Group = { id: string; name: string; total_qty: number; sort: number };
@@ -326,7 +326,7 @@ export default function Admin() {
   );
 
   // Older order lines may lack item_id; fall back to matching by name.
-  const sold = (item: Item) => orders.reduce((sum, order) => sum + order.items
+  const sold = (item: Item) => orders.filter((order) => !order.is_test).reduce((sum, order) => sum + order.items
     .filter((line) => (line.item_id ? line.item_id === item.id : line.name === item.name))
     .reduce((n, line) => n + line.qty, 0), 0);
   const groupSold = (id: string) => items.filter((i) => i.group_id === id).reduce((n, i) => n + sold(i), 0);
@@ -527,7 +527,7 @@ export default function Admin() {
             {orders.map((order) => (
               <li key={order.id} className="flex flex-wrap items-start justify-between gap-3 py-3 font-mono text-[12px] text-primary">
                 <div>
-                  <p className="font-bold">{order.customer_name} · ${(order.total_cents / 100).toFixed(2)}{order.discount_percent ? ` (${order.discount_percent}% off · ${order.discount_code})` : ""}</p>
+                  <p className="font-bold">{order.is_test && <span className="mr-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-normal">test</span>}{order.customer_name} · ${(order.total_cents / 100).toFixed(2)}{order.discount_percent ? ` (${order.discount_percent}% off · ${order.discount_code})` : ""}</p>
                   <p className="text-primary/70"><span className="normal-case">{[order.email, order.phone].filter(Boolean).join(" · ")}</span>{order.sms_opt_in ? " · opted in to phone updates" : ""}</p>
                   <p className="text-primary/70">{order.items.map((line) => `${line.qty}× ${line.name}`).join(", ")}</p>
                 </div>
