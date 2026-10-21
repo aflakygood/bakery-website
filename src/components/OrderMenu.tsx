@@ -295,7 +295,7 @@ export default function OrderMenu() {
                          <div className="relative aspect-[4/5] overflow-hidden rounded-[6px] bg-secondary/60">
                            <Button type="button" variant="ghost" onClick={() => openItem(i)} className="flex h-full w-full items-center justify-center overflow-hidden rounded-none p-0 hover:bg-transparent" aria-label={`view ${i.name}`}>
                           <img src={itemImage(i.name, i.image_url).src} alt={i.name} loading="lazy"
-                             className={`${itemImage(i.name, i.image_url).cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} transition-transform duration-700 group-hover:scale-105`} />
+                             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
                            </Button>
                            <motion.div
                              initial={false}
@@ -409,7 +409,7 @@ export default function OrderMenu() {
           </button>
           <div className="mx-auto w-full max-w-[760px]">
             <img src={itemImage(sel.name, sel.image_url).src} alt={sel.name}
-              className={cn("aspect-[3/2] w-full", itemImage(sel.name, sel.image_url).cutout ? "bg-secondary/60 object-contain p-6" : "object-cover")} />
+              className="aspect-[4/5] max-h-[70vh] w-full object-cover" />
             <div className="px-6 py-8">
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
               <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
@@ -528,7 +528,7 @@ function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmatio
                 <li key={i.name} className="flex items-center gap-4 py-3 first:pt-0">
                   <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-secondary">
                     <img src={img.src} alt="" loading="lazy"
-                      className={img.cutout ? "h-[80%] w-[80%] object-contain" : "h-full w-full object-cover"} />
+                      className="h-full w-full object-cover" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-display text-[17px] font-black tracking-brand text-primary">{i.name}</p>

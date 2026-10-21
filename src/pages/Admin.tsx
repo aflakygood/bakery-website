@@ -315,7 +315,7 @@ export default function Admin() {
             <ul className="mt-1 space-y-3">
               {rows.map((row) => {
                 const d = row.draft;
-                const img = row.preview ? { src: row.preview, cutout: row.file?.type !== "image/jpeg" } : itemImage(d.name, d.image_url);
+                const img = row.preview ? { src: row.preview } : itemImage(d.name, d.image_url);
                 const item = row.id ? items.find((i) => i.id === row.id) : undefined;
                 const label = d.name.trim() || "new item";
                 return (
@@ -323,7 +323,7 @@ export default function Admin() {
                     <div className="flex gap-4">
                       <div className="w-24 shrink-0">
                         <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-sm bg-secondary">
-                          <img src={img.src} alt="" className={img.cutout ? "h-[85%] w-[85%] object-contain" : "h-full w-full object-cover"} />
+                          <img src={img.src} alt="" className="h-full w-full object-cover" />
                         </div>
                         <label className="mt-2 block cursor-pointer text-center font-mono text-[11px] text-primary underline focus-within:outline focus-within:outline-2">
                           change photo
