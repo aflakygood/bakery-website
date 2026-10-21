@@ -52,7 +52,7 @@ export default function Drop() {
               </p>
             )}
             {phase === "open" && drop?.closes_at && (
-              <p className="mt-4 flex justify-center">
+              <p className="relative top-[10px] mt-4 flex justify-center">
                 <span className="rounded-full bg-background px-4 py-1.5 font-mono text-[13px] lowercase tracking-brand text-primary md:text-[14px]">
                   preorder closes on <span className="font-semibold">{closesLabel(drop.closes_at)}</span>
                 </span>
