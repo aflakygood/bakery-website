@@ -518,7 +518,10 @@ function OrderConfirmation({ c, orderRef, menu, reduceMotion }: { c: Confirmatio
           </h2>
           <p className="mt-3 font-mono text-[17px] text-primary/75">thank you for your order.</p>
           {c.email_sent && c.email && (
-            <p className="mt-2 font-mono text-[13px] text-primary/60">a confirmation is on its way to <span className="normal-case">{c.email}</span>.</p>
+            <p className="mt-2 font-mono text-[13px] text-primary/60">
+              a confirmation is on its way to <span className="normal-case">{c.email}</span>.
+              <span className="mt-0.5 block">(check your spam folder)</span>
+            </p>
           )}
         </div>
 
