@@ -48,7 +48,7 @@ export default function Drop() {
             {phase === "open" ? (
               <Link to="/preorder"
                 className="mt-7 flex items-center justify-center gap-2 rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">
-                preorder <ArrowRight className="h-3.5 w-3.5" />
+                preorder menu <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             ) : (
               <p aria-disabled="true"
