@@ -120,11 +120,11 @@ export default function OrderMenu() {
   const open = phase === "open" && !soldOut;
   const total = useMemo(() => items.reduce((s, i) => s + (qty[i.id] ?? 0) * i.price_cents, 0), [items, qty]);
 
-  // Secret codes in brackets in the name, e.g. "Ayush (friends)". The server re-checks at checkout.
+  // The server checks name-based and parenthesized discounts again at checkout.
   const [discountPct, setDiscountPct] = useState<number | null>(null);
   useEffect(() => {
     const name = form.customer_name;
-    if (!isSupabaseConfigured || !/\([^()]+\)/.test(name)) { setDiscountPct(null); return; }
+    if (!isSupabaseConfigured || !name.trim()) { setDiscountPct(null); return; }
     let stale = false;
     const t = setTimeout(async () => {
       const { data } = await supabase.functions.invoke("check-discount", { body: { name } });
