@@ -92,6 +92,7 @@ export default function OrderMenu() {
   const [form, setForm] = useState({ customer_name: "", email: "", phone: "", sms_opt_in: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [menuError, setMenuError] = useState("");
   const [emailMsg, setEmailMsg] = useState("");
   const [phoneMsg, setPhoneMsg] = useState("");
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
@@ -102,7 +103,12 @@ export default function OrderMenu() {
     const { data: d } = await supabase.from("drops").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!d) { setLoaded(true); return; }
     setDrop(d);
-    const { data: its } = await supabase.from("drop_items").select("*").eq("drop_id", d.id).order("sort");
+    const { data: its, error: itemsError } = await supabase.from("drop_items").select("*").eq("drop_id", d.id).eq("archived", false).order("sort");
+    if (itemsError) {
+      setMenuError("Could not load the menu. Please refresh and try again.");
+      setLoaded(true);
+      return;
+    }
     const withRemaining = await Promise.all(
       (its ?? []).map(async (i) => {
         const { data: r } = await supabase.rpc("item_remaining", { _item_id: i.id });
@@ -110,6 +116,7 @@ export default function OrderMenu() {
       }),
     );
     setItems(withRemaining);
+    setMenuError("");
     setLoaded(true);
   };
   useEffect(() => { load(); }, []);
@@ -261,6 +268,12 @@ export default function OrderMenu() {
   const input = "w-full rounded-[6px] border border-primary/15 bg-background px-4 py-3 font-mono text-[15px] text-primary placeholder:text-primary/40 focus:outline-none focus:border-primary/50";
 
   if (confirmation) return <OrderConfirmation c={confirmation} orderRef={orderRef} menu={items} reduceMotion={!!reduceMotion} />;
+
+  if (menuError) return (
+    <section id="order" className="px-6 py-14 text-center">
+      <p role="alert" className="font-mono text-[15px] text-destructive">{menuError}</p>
+    </section>
+  );
 
   if (isSupabaseConfigured && (!loaded || phase === "upcoming")) return (
     <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">

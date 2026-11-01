@@ -22,3 +22,22 @@ does not). The customer's name is preserved on the order.
 Existing parenthesized codes, such as `Ayush (friends)`, still work.
 Only codes with `match_name = true` can also match a name without parentheses.
 Discounts are validated and calculated server-side during checkout.
+
+## Deleting menu items
+
+Apply `drizzle/migrations/0014_archive_menu_items.sql` before publishing the
+updated frontend, then redeploy `create-checkout`.
+
+In `/admin`, choose **delete item**, confirm, then **save changes**.
+**Discard** restores the item before saving. Unsaved new items can be removed
+without confirmation. Saved items are archived: they disappear from the menu,
+cannot be used in new checkouts, and are not copied when starting the next drop.
+Existing orders, product images, and shared-stock reservations are preserved.
+Admin sold counts still include archived items in their stock group.
+Deletion uses the existing database `has_role` admin policy; no new grants are
+needed. `item_remaining` deliberately continues to include archived group members.
+
+To check authorization, retained reservations/history, and next-drop copying,
+run `psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/archive-menu-items.sql`
+against a migrated test database with permission to `SET ROLE authenticated`.
+The test rolls back its fixtures and changes.

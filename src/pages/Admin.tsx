@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; is_test: boolean; created_at: string };
-type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null };
+type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null; archived: boolean };
 // Items in a stock group share the group's spots instead of having their own.
 type Group = { id: string; name: string; total_qty: number; sort: number };
 type Drop = PickupFields & DropSchedule & { id: string; title: string };
@@ -54,7 +54,7 @@ const itemDraftOf = (i: Item): ItemDraft => ({
 });
 const groupDraftOf = (g: Group): GroupDraft => ({ name: g.name, total_qty: String(g.total_qty) });
 const groupRowsOf = (groups: Group[]): GroupRow[] => groups.map((g) => ({ key: g.id, id: g.id, draft: groupDraftOf(g) }));
-const rowsOf = (items: Item[]): Row[] => items.map((item) => ({ key: item.id, id: item.id, draft: itemDraftOf(item), file: null, preview: null }));
+const rowsOf = (items: Item[]): Row[] => items.filter((item) => !item.archived).map((item) => ({ key: item.id, id: item.id, draft: itemDraftOf(item), file: null, preview: null }));
 const blankDraft: ItemDraft = { name: "", price: "", total_qty: "0", min_per_order: "1", max_per_order: "2", description: "", ingredients: "", image_url: null, group: "" };
 const photoTypes: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 const same = (a: object, b: object) => JSON.stringify(a) === JSON.stringify(b);
@@ -73,6 +73,7 @@ export default function Admin() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirming, setConfirming] = useState<"close" | "next" | null>(null);
+  const [confirmingItem, setConfirmingItem] = useState<Row | null>(null);
   const now = useNow();
 
   useEffect(() => {
@@ -121,7 +122,8 @@ export default function Admin() {
     return !group || !same(row.draft, groupDraftOf(group));
   };
   const removedGroups = groups.filter((g) => !groupRows.some((row) => row.id === g.id));
-  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || rows.some(rowChanged) || groupRows.some(groupChanged) || removedGroups.length > 0);
+  const removedItems = items.filter((item) => !item.archived && !rows.some((row) => row.id === item.id));
+  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || rows.some(rowChanged) || groupRows.some(groupChanged) || removedGroups.length > 0 || removedItems.length > 0);
 
   useEffect(() => {
     if (!dirty) return;
@@ -167,8 +169,9 @@ export default function Admin() {
     setGroupRows((all) => all.filter((row) => row.key !== key));
     setRows((all) => all.map((row) => (row.draft.group === key ? { ...row, draft: { ...row.draft, group: "" } } : row)));
   };
-  const removeNewItem = (row: Row) => {
+  const removeItem = (row: Row) => {
     if (row.preview) URL.revokeObjectURL(row.preview);
+    setNotice(null);
     setRows((all) => all.filter((r) => r.key !== row.key));
   };
 
@@ -254,6 +257,11 @@ export default function Admin() {
       // Record progress so a retry after a partial failure doesn't re-insert or re-upload.
       if (row.preview) URL.revokeObjectURL(row.preview);
       updateRow(row.key, { id: result.data.id, file: null, preview: null, draft: { ...row.draft, name: values.name, image_url: imageUrl } });
+    }
+    for (const item of removedItems) {
+      if (error) break;
+      const result = await supabase.from("drop_items").update({ archived: true }).eq("id", item.id).eq("drop_id", drop.id).select("id").single();
+      if (result.error) error = result.error.message;
     }
     for (const group of removedGroups) {
       if (error) break;
@@ -473,13 +481,18 @@ export default function Admin() {
                             </select>
                           </label>
                         )}
-                        {item ? (
-                          <p className="font-mono text-[11px] text-primary/60">
-                            {groupRow ? `sold ${sold(item)} · shares ${groupName} spots` : `sold ${sold(item)} / ${item.total_qty}`}
-                          </p>
-                        ) : (
-                          <button onClick={() => removeNewItem(row)} className="font-mono text-[11px] text-primary/60 underline">remove</button>
-                        )}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          {item && (
+                            <p className="font-mono text-[11px] text-primary/60">
+                              {groupRow ? `sold ${sold(item)} · shares ${groupName} spots` : `sold ${sold(item)} / ${item.total_qty}`}
+                            </p>
+                          )}
+                          <button onClick={() => row.id ? setConfirmingItem(row) : removeItem(row)} disabled={saving}
+                            aria-label={`${row.id ? "delete" : "remove"} ${label}`}
+                            className="font-mono text-[11px] text-destructive underline disabled:opacity-50">
+                            {row.id ? "delete item" : "remove"}
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <textarea rows={3} placeholder="description shown to customers" aria-label={`description for ${label}`} className={`${field} mt-3`}
@@ -517,6 +530,24 @@ export default function Admin() {
               <AlertDialogFooter className="gap-2">
                 <AlertDialogCancel className="rounded-sm border-primary font-mono text-[12px] text-primary">cancel</AlertDialogCancel>
                 <AlertDialogAction className="rounded-sm font-mono text-[12px]" onClick={() => void confirmCopy[confirming].run()}>{confirmCopy[confirming].action}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          )}
+        </AlertDialog>
+
+        <AlertDialog open={!!confirmingItem} onOpenChange={(open) => !open && setConfirmingItem(null)}>
+          {confirmingItem && (
+            <AlertDialogContent className="w-[calc(100%-2.5rem)] max-w-sm rounded-md border-primary/15 bg-background sm:rounded-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="font-display text-2xl font-black tracking-brand text-primary">delete {confirmingItem.draft.name.trim() || "this item"}?</AlertDialogTitle>
+                <AlertDialogDescription className="font-mono text-[12px] text-primary/70">
+                  this item will be removed from the menu when you save changes, and won't be copied to future drops. existing orders and stock reservations are kept. you can discard before saving to undo this.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2">
+                <AlertDialogCancel className="rounded-sm border-primary font-mono text-[12px] text-primary">cancel</AlertDialogCancel>
+                <AlertDialogAction disabled={saving} className="rounded-sm bg-destructive font-mono text-[12px] text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => removeItem(confirmingItem)}>delete item</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           )}
