@@ -528,7 +528,6 @@ export default function OrderMenu() {
               className="aspect-[4/5] max-h-[70vh] w-full object-cover" />
             <div className="px-6 py-8">
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
-              <p className="mt-2 font-mono text-[13px] text-primary/70">{sel.variants.length ? "from " : ""}{money(lowestPrice(sel.price_cents, sel.variants))}</p>
               {sel.description && <p className="mt-5 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.description}</p>}
               {sel.ingredients?.trim() && (
                 <div className="mt-6">
