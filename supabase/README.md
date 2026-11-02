@@ -41,3 +41,24 @@ To check authorization, retained reservations/history, and next-drop copying,
 run `psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/archive-menu-items.sql`
 against a migrated test database with permission to `SET ROLE authenticated`.
 The test rolls back its fixtures and changes.
+
+## Item variations
+
+Apply `drizzle/migrations/0015_item_variants.sql` before publishing the updated
+frontend, then redeploy `create-checkout`.
+
+In `/admin`, choose **+ add variation** on any item and enter a label and price
+for each option (up to 12). On the menu, "+" on that item opens a picker (modal
+on desktop, bottom sheet on phones) instead of adding directly. The item shows
+"from $lowest"; its own price field is ignored while it has variations. Prices
+are always resolved server-side by `create-checkout`. Variations are copied to
+the next drop.
+
+`drizzle/migrations/0016_seed_item_variants.sql` (apply after 0015) gives existing
+cookie items a "3 piece pack" $8.99 / "6 piece pack" $15.99 choice and focaccia
+items a "mini" $8 / "8"x8"" $24 choice, and drops the "(3p)" / "(8"x8")" suffix
+from their names. It skips items that already have variations.
+
+All variations of an item share that item's spots (and stock group), one spot
+per unit, and the per-order min/max apply to the combined quantity. Order lines
+are named "item name — variation label".

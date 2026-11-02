@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 import { discountCents, findDiscount } from "../_shared/discount.ts";
 import { EMAIL_RE, US_PHONE_RE } from "../_shared/contact.ts";
+import { lineName, parseVariants } from "../_shared/variants.ts";
 
 const Body = z.object({
   drop_id: z.string().uuid(),
@@ -10,7 +11,7 @@ const Body = z.object({
   email: z.string().trim().max(254).regex(EMAIL_RE),
   phone: z.union([z.literal(""), z.string().trim().regex(US_PHONE_RE)]).optional().default(""),
   sms_opt_in: z.boolean().optional().default(false),
-  items: z.array(z.object({ item_id: z.string().uuid(), qty: z.number().int().min(1).max(50) })).min(1).max(20),
+  items: z.array(z.object({ item_id: z.string().uuid(), variant_id: z.string().min(1).max(64).optional(), qty: z.number().int().min(1).max(50) })).min(1).max(40),
 });
 
 const json = (b: unknown, status = 200) =>
@@ -38,13 +39,20 @@ Deno.serve(async (req) => {
     if (!live) return json({ error: "Preorders are closed for this drop." }, 400);
 
     // Merge repeated lines so per-order limits and stock checks can't be bypassed.
+    // Limits and stock apply to the item as a whole, so its variations count together.
     const wanted = new Map<string, number>();
-    for (const { item_id, qty } of input.items) wanted.set(item_id, (wanted.get(item_id) ?? 0) + qty);
+    const variantQty = new Map<string, Map<string, number>>();
+    for (const { item_id, variant_id, qty } of input.items) {
+      wanted.set(item_id, (wanted.get(item_id) ?? 0) + qty);
+      const byVariant = variantQty.get(item_id) ?? new Map<string, number>();
+      byVariant.set(variant_id ?? "", (byVariant.get(variant_id ?? "") ?? 0) + qty);
+      variantQty.set(item_id, byVariant);
+    }
 
     const { data: dbItems, error: itemsError } = await db.from("drop_items").select("*").eq("drop_id", drop.id).eq("archived", false);
     if (itemsError) throw itemsError;
     const { data: groups } = await db.from("item_groups").select("id, name").eq("drop_id", drop.id);
-    const lines: { item_id: string; name: string; qty: number; price_cents: number }[] = [];
+    const lines: { item_id: string; variant_id?: string; name: string; qty: number; price_cents: number }[] = [];
     // Items in a group share its spots, so the combined quantity per group must fit too.
     const groupWanted = new Map<string, { qty: number; remaining: number }>();
     const remainingOf = new Map<string, number>();
@@ -60,8 +68,20 @@ Deno.serve(async (req) => {
         const g = groupWanted.get(it.group_id) ?? { qty: 0, remaining: remaining ?? 0 };
         groupWanted.set(it.group_id, { ...g, qty: g.qty + qty });
       }
-      lines.push({ item_id, name: it.name, qty, price_cents: it.price_cents });
-      total += qty * it.price_cents;
+      // Items with variations are priced per variation from the database; the browser only names which one.
+      const variants = parseVariants(it.variants);
+      for (const [variant_id, lineQty] of variantQty.get(item_id)!) {
+        if (!variants.length) {
+          if (variant_id) return json({ error: `The options for ${it.name} changed. Please refresh the menu.` }, 409);
+          lines.push({ item_id, name: it.name, qty: lineQty, price_cents: it.price_cents });
+          total += lineQty * it.price_cents;
+          continue;
+        }
+        const v = variants.find((x) => x.id === variant_id);
+        if (!v) return json({ error: `The options for ${it.name} changed. Please refresh the menu.` }, 409);
+        lines.push({ item_id, variant_id: v.id, name: lineName(it.name, v.label), qty: lineQty, price_cents: v.price_cents });
+        total += lineQty * v.price_cents;
+      }
     }
     for (const [group_id, g] of groupWanted) {
       if (g.qty > g.remaining) {
@@ -70,13 +90,13 @@ Deno.serve(async (req) => {
       }
     }
     // Below the minimum is fine only when it takes everything left (after other items sharing the group).
-    for (const line of lines) {
-      const it = dbItems!.find((d) => d.id === line.item_id)!;
+    for (const [item_id, qty] of wanted) {
+      const it = dbItems!.find((d) => d.id === item_id)!;
       const min = it.min_per_order ?? 1;
-      if (line.qty >= min) continue;
+      if (qty >= min) continue;
       const g = it.group_id ? groupWanted.get(it.group_id) : undefined;
-      const available = g ? g.remaining - (g.qty - line.qty) : remainingOf.get(line.item_id) ?? 0;
-      if (line.qty < available) return json({ error: `Min ${min} ${it.name} per order.` }, 400);
+      const available = g ? g.remaining - (g.qty - qty) : remainingOf.get(item_id) ?? 0;
+      if (qty < available) return json({ error: `Min ${min} ${it.name} per order.` }, 400);
     }
 
     const subtotal = total;

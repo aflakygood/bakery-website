@@ -36,7 +36,7 @@ export default function Nav() {
             </span>
           ) : (
             <Link to="/preorder"
-              className="rounded-[6px] border border-primary px-4 py-2 font-mono text-[14px] lowercase tracking-brand text-primary transition-colors hover:bg-primary hover:text-primary-foreground md:px-5 md:py-2.5 md:text-[15px]">
+              className="rounded-[6px] border border-primary bg-primary px-4 py-2 font-mono text-[14px] lowercase tracking-brand text-white transition-colors hover:bg-[hsl(var(--green-deep))] md:px-5 md:py-2.5 md:text-[15px]">
               preorder
             </Link>
           )}

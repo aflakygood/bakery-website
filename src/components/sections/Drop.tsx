@@ -30,7 +30,7 @@ export default function Drop() {
           <img src={cover} alt="multigrain sourdough loaf on a marble board" loading="lazy" className="block h-64 w-full object-cover object-[50%_48%] md:h-80" />
           {phase === "open" && drop?.closes_at && (
             <span className="absolute right-3 top-3 rounded-full bg-background px-3.5 py-1.5 font-mono text-[12px] lowercase tracking-brand text-primary shadow-sm md:right-4 md:top-4 md:px-4 md:text-[14px]">
-              preorder closes on <span className="font-semibold">{closesLabel(drop.closes_at)}</span>
+              preorder closes by <span className="font-semibold">{closesLabel(drop.closes_at)}</span>
             </span>
           )}
           <div className="px-6 pb-7 pt-6 md:px-8 md:pb-8 md:pt-7">

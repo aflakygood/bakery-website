@@ -11,8 +11,10 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import SmsDisclosure from "@/components/SmsDisclosure";
 import { itemImage } from "@/lib/itemImage";
 import { EMAIL_RE, US_PHONE_RE } from "@/lib/contact";
+import { lineKey, lineName, lowestPrice, money, parseVariants, type Variant } from "@/lib/variants";
+import VariantSheet from "@/components/VariantSheet";
 
-type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; min_per_order: number; max_per_order: number; remaining: number; image_url: string | null; group_id: string | null };
+type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; variants: Variant[]; min_per_order: number; max_per_order: number; remaining: number; image_url: string | null; group_id: string | null };
 type DropRow = PickupFields & DropSchedule & { id: string; title: string };
 type Confirmation = {
   customer_name: string;
@@ -35,8 +37,6 @@ declare global {
     removeHelcimPayIframe?: () => void;
   }
 }
-
-const money = (c: number) => `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
 
 function loadHelcim() {
   return new Promise<void>((resolve, reject) => {
@@ -112,7 +112,7 @@ export default function OrderMenu() {
     const withRemaining = await Promise.all(
       (its ?? []).map(async (i) => {
         const { data: r } = await supabase.rpc("item_remaining", { _item_id: i.id });
-        return { ...i, remaining: Math.max(0, r ?? 0) };
+        return { ...i, variants: parseVariants(i.variants), remaining: Math.max(0, r ?? 0) };
       }),
     );
     setItems(withRemaining);
@@ -125,7 +125,13 @@ export default function OrderMenu() {
   const closed = phase === "ended" || phase === "closed";
   const soldOut = !closed && items.length > 0 && items.every((i) => i.remaining === 0);
   const open = phase === "open" && !soldOut;
-  const total = useMemo(() => items.reduce((s, i) => s + (qty[i.id] ?? 0) * i.price_cents, 0), [items, qty]);
+  // Cart quantities are keyed by lineKey: the item id, or item id + variation id for items with variations.
+  const cartLines = useMemo(() => items.flatMap((i) => (i.variants.length
+    ? i.variants.map((v) => ({ item: i, variant: v, key: lineKey(i.id, v.id), name: lineName(i.name, v.label), price_cents: v.price_cents }))
+    : [{ item: i, variant: null, key: lineKey(i.id), name: i.name, price_cents: i.price_cents }]
+  )).map((l) => ({ ...l, qty: qty[l.key] ?? 0 })).filter((l) => l.qty > 0), [items, qty]);
+  const itemQty = (i: Item) => cartLines.reduce((n, l) => n + (l.item.id === i.id ? l.qty : 0), 0);
+  const total = useMemo(() => cartLines.reduce((s, l) => s + l.qty * l.price_cents, 0), [cartLines]);
 
   // The server checks name-based and parenthesized discounts again at checkout.
   const [discountPct, setDiscountPct] = useState<number | null>(null);
@@ -143,9 +149,10 @@ export default function OrderMenu() {
 
   // Grouped items share spots, so other cart items in the same group use up this item's availability.
   const avail = (i: Item) =>
-    Math.max(0, i.remaining - (i.group_id ? items.reduce((s, o) => s + (o.id !== i.id && o.group_id === i.group_id ? qty[o.id] ?? 0 : 0), 0) : 0));
+    Math.max(0, i.remaining - (i.group_id ? items.reduce((s, o) => s + (o.id !== i.id && o.group_id === i.group_id ? itemQty(o) : 0), 0) : 0));
 
   // Some items have a minimum per order, waived when fewer than that are left.
+  // Variations of one item count together toward the minimum, the maximum and stock.
   const minFor = (i: Item) => Math.max(1, Math.min(i.min_per_order ?? 1, avail(i)));
   const belowMin = (i: Item, n: number) => n > 0 && n < minFor(i);
 
@@ -173,13 +180,55 @@ export default function OrderMenu() {
     else setSel(null);
   };
   useEffect(() => {
-    const onPop = () => setSel(null);
+    const onPop = () => { setSel(null); setPickerOpen(false); };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   const openItem = (i: Item) => {
     if (!window.history.state?.itemSheet) window.history.pushState({ ...window.history.state, itemSheet: true }, "");
     setSel(i); setMQty(Math.max(minFor(i), qty[i.id] ?? 0)); setMMsg("");
+  };
+
+  // Items with variations open this sheet (modal on desktop, bottom sheet on phones) instead of adding directly.
+  const [picker, setPicker] = useState<Item | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pDraft, setPDraft] = useState<Record<string, number>>({});
+  const [pMsg, setPMsg] = useState("");
+  const closePicker = () => {
+    if (window.history.state?.itemSheet) window.history.back();
+    else setPickerOpen(false);
+  };
+  const openPicker = (i: Item) => {
+    // Reuses the details sheet's history entry when opened from there.
+    if (!window.history.state?.itemSheet) window.history.pushState({ ...window.history.state, itemSheet: true }, "");
+    setPicker(i);
+    setPDraft(Object.fromEntries(i.variants.map((v) => [v.id, qty[lineKey(i.id, v.id)] ?? 0])));
+    setPMsg("");
+    setPickerOpen(true);
+  };
+  const pTotal = Object.values(pDraft).reduce((n, v) => n + v, 0);
+  const pChange = (variantId: string, d: 1 | -1) => {
+    if (!picker) return;
+    if (d > 0) {
+      const left = avail(picker);
+      if (pTotal + 1 > Math.min(picker.max_per_order, left)) {
+        setPMsg(pTotal + 1 > left ? "no more available this week." : "that's the most you can order.");
+        return;
+      }
+    }
+    setPMsg("");
+    setPDraft((q) => ({ ...q, [variantId]: Math.max(0, (q[variantId] ?? 0) + d) }));
+  };
+  const pConfirm = () => {
+    if (!picker) return;
+    if (belowMin(picker, pTotal)) return setPMsg(`min ${minFor(picker)} per order.`);
+    setQty((q) => {
+      const next = { ...q };
+      for (const v of picker.variants) next[lineKey(picker.id, v.id)] = pDraft[v.id] ?? 0;
+      return next;
+    });
+    setLimitMsg((m) => ({ ...m, [picker.id]: "" }));
+    closePicker();
   };
   const mChange = (d: number) => {
     if (!sel) return;
@@ -204,9 +253,9 @@ export default function OrderMenu() {
     e.preventDefault();
     if (!drop) return;
     setError("");
-    const lines = Object.entries(qty).filter(([, n]) => n > 0).map(([item_id, n]) => ({ item_id, qty: n }));
+    const lines = cartLines.map((l) => ({ item_id: l.item.id, ...(l.variant ? { variant_id: l.variant.id } : {}), qty: l.qty }));
     if (!lines.length) return setError("Pick at least one item.");
-    const short = items.find((i) => belowMin(i, qty[i.id] ?? 0));
+    const short = items.find((i) => belowMin(i, itemQty(i)));
     if (short) {
       setLimitMsg((m) => ({ ...m, [short.id]: `min ${short.min_per_order} per order.` }));
       return setError(`${short.name}: min ${short.min_per_order} per order.`);
@@ -237,10 +286,10 @@ export default function OrderMenu() {
           });
           if (cErr) setError(await errText(cErr));
           else {
-            const cartLines = items.filter((i) => (qty[i.id] ?? 0) > 0).map((i) => ({ name: i.name, qty: qty[i.id], price_cents: i.price_cents }));
+            const confirmedLines = cartLines.map((l) => ({ name: l.name, qty: l.qty, price_cents: l.price_cents }));
             setConfirmation(cData?.confirmation ?? {
               customer_name: discountPct ? form.customer_name.replace(/\([^()]*\)/g, " ").replace(/\s+/g, " ").trim() : form.customer_name,
-              items: cartLines, total_cents: payTotal, subtotal_cents: total, discount_percent: discountPct,
+              items: confirmedLines, total_cents: payTotal, subtotal_cents: total, discount_percent: discountPct,
               sms_opt_in: form.sms_opt_in, has_phone: !!form.phone, pickup: drop, pickup_address: null,
             });
             setOrderRef({ order_id, checkout_token: checkoutToken });
@@ -312,8 +361,8 @@ export default function OrderMenu() {
                 open ? "bg-primary text-primary-foreground" : "bg-background/90 text-primary")}>
                 <span className={cn("rounded-full", open ? "h-2 w-2 animate-pulse bg-primary-foreground" : "h-1.5 w-1.5 bg-primary opacity-40")} />
                 <span>
-                  {open ? "preorders open" : soldOut ? "sold out" : "preorders closed"}
-                  {open && drop?.closes_at && <> · preorder closes on <span className="font-semibold">{closesLabel(drop.closes_at)}</span></>}
+                  {open ? "open" : soldOut ? "sold out" : "preorders closed"}
+                  {open && drop?.closes_at && <> · preorder closes by <span className="font-semibold">{closesLabel(drop.closes_at)}</span></>}
                 </span>
               </span>
               {!isSupabaseConfigured ? (
@@ -351,37 +400,50 @@ export default function OrderMenu() {
                            ) : (
                            <motion.div
                              initial={false}
-                             animate={{ width: (qty[i.id] ?? 0) > 0 ? 136 : 44 }}
+                             animate={{ width: itemQty(i) > 0 && !i.variants.length ? 136 : 44 }}
                              transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 30 }}
                              className="absolute bottom-2 right-2 z-10 flex h-11 max-w-[calc(100%-16px)] items-center overflow-hidden rounded-full bg-primary text-primary-foreground"
                            >
-                             {(qty[i.id] ?? 0) > 0 && (
+                             {i.variants.length > 0 ? (
                                <>
                                  <Button type="button" variant="ghost" size="icon"
-                                   aria-label={`less ${i.name}`} onClick={() => change(i, -1)} disabled={!open}
-                                   className="h-11 w-10 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
-                                   {(qty[i.id] === 1 || belowMin(i, qty[i.id] - 1)) ? <Trash2 /> : <Minus />}
+                                   aria-label={itemQty(i) > 0 ? `edit options for ${i.name}, ${itemQty(i)} in cart` : `choose options for ${i.name}`}
+                                   onClick={() => openPicker(i)} disabled={!open}
+                                   className="h-11 w-11 shrink-0 rounded-full font-mono text-[14px] text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
+                                   {itemQty(i) > 0 ? itemQty(i) : <Plus className="!h-5 !w-5" />}
                                  </Button>
-                                 <span className="min-w-0 flex-1 text-center font-mono text-[14px]" aria-live="polite" aria-atomic="true">
-                                   <motion.span key={qty[i.id]} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="block">
-                                     {qty[i.id]}
-                                     {i.min_per_order > 1 && qty[i.id] === i.min_per_order && <span className="ml-1 text-[12px] opacity-75">(min)</span>}
-                                   </motion.span>
-                                 </span>
+                               </>
+                             ) : (
+                               <>
+                                 {(qty[i.id] ?? 0) > 0 && (
+                                   <>
+                                     <Button type="button" variant="ghost" size="icon"
+                                       aria-label={`less ${i.name}`} onClick={() => change(i, -1)} disabled={!open}
+                                       className="h-11 w-10 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
+                                       {(qty[i.id] === 1 || belowMin(i, qty[i.id] - 1)) ? <Trash2 /> : <Minus />}
+                                     </Button>
+                                     <span className="min-w-0 flex-1 text-center font-mono text-[14px]" aria-live="polite" aria-atomic="true">
+                                       <motion.span key={qty[i.id]} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="block">
+                                         {qty[i.id]}
+                                         {i.min_per_order > 1 && qty[i.id] === i.min_per_order && <span className="ml-1 text-[12px] opacity-75">(min)</span>}
+                                       </motion.span>
+                                     </span>
+                                   </>
+                                 )}
+                                 <Button type="button" variant="ghost" size="icon"
+                                   aria-label={`more ${i.name}`} onClick={() => change(i, 1)} disabled={!open}
+                                   className="ml-auto h-11 w-11 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
+                                   <Plus className="!h-5 !w-5" />
+                                 </Button>
                                </>
                              )}
-                             <Button type="button" variant="ghost" size="icon"
-                               aria-label={`more ${i.name}`} onClick={() => change(i, 1)} disabled={!open}
-                               className="ml-auto h-11 w-11 shrink-0 rounded-full text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground">
-                               <Plus className="!h-5 !w-5" />
-                             </Button>
                            </motion.div>
                            )}
                         </div>
                          <Button type="button" variant="ghost" onClick={() => openItem(i)} className="block h-auto w-full whitespace-normal rounded-none p-0 text-left hover:bg-transparent" aria-label={`details ${i.name}`}>
                         <h3 className="mt-[18px] font-display text-base font-black leading-none tracking-brand text-primary md:text-lg md:leading-none">{i.name.toLowerCase()}.</h3>
                         <p className="mt-1 font-mono text-[12px] text-primary/65 md:text-[13px]">
-                          {money(i.price_cents)}
+                          {i.variants.length ? "from " : ""}{money(lowestPrice(i.price_cents, i.variants))}
                         </p>
                          </Button>
                         {limitMsg[i.id] && <p className="mt-2 font-mono text-[11px] text-destructive">{limitMsg[i.id]}</p>}
@@ -466,7 +528,7 @@ export default function OrderMenu() {
               className="aspect-[4/5] max-h-[70vh] w-full object-cover" />
             <div className="px-6 py-8">
               <h3 className="font-display text-2xl font-black tracking-brand text-primary">{sel.name.toLowerCase()}.</h3>
-              <p className="mt-2 font-mono text-[13px] text-primary/70">{money(sel.price_cents)}</p>
+              <p className="mt-2 font-mono text-[13px] text-primary/70">{sel.variants.length ? "from " : ""}{money(lowestPrice(sel.price_cents, sel.variants))}</p>
               {sel.description && <p className="mt-5 whitespace-pre-line font-mono text-[13px] leading-relaxed text-primary/80">{sel.description}</p>}
               {sel.ingredients?.trim() && (
                 <div className="mt-6">
@@ -478,7 +540,7 @@ export default function OrderMenu() {
                 <p className="mt-10 text-center font-mono text-[13px] text-primary/70">
                   {sel.remaining === 0 ? "sold out." : "no more available this week."}
                 </p>
-              ) : (
+              ) : sel.variants.length > 0 ? null : (
                 <>
                   <div className="mt-10 flex items-center justify-center gap-5">
                     <button type="button" aria-label="less" onClick={() => mChange(-1)} disabled={mQty <= minFor(sel)}
@@ -497,15 +559,40 @@ export default function OrderMenu() {
           </div>
           {avail(sel) > 0 && (
             <div className="sticky bottom-0 mt-auto w-full bg-background/95 px-4 pb-4 pt-2">
+              {sel.variants.length > 0 ? (
+                <button type="button" disabled={!open}
+                  onClick={() => { setSel(null); openPicker(sel); }}
+                  className="mx-auto flex w-full max-w-[760px] items-center justify-between rounded-[6px] bg-primary px-6 py-4 font-mono text-[15px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
+                  <span>{open ? "choose options" : "preorders closed"}</span>
+                  <span>from {money(lowestPrice(sel.price_cents, sel.variants))}</span>
+                </button>
+              ) : (
               <button type="button" disabled={!open}
                 onClick={() => { setQty((q) => ({ ...q, [sel.id]: Math.min(mQty, avail(sel)) })); setLimitMsg((m) => ({ ...m, [sel.id]: "" })); closeItem(); }}
                 className="mx-auto flex w-full max-w-[760px] items-center justify-between rounded-[6px] bg-primary px-6 py-4 font-mono text-[15px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))] disabled:opacity-50">
                 <span>{open ? "add to cart" : "preorders closed"}</span>
                 <span>{money(sel.price_cents * mQty)}</span>
               </button>
+              )}
             </div>
           )}
         </div>
+      )}
+      {picker && (
+        <VariantSheet
+          open={pickerOpen}
+          onOpenChange={(next) => { if (!next) closePicker(); }}
+          title={`${picker.name.toLowerCase()}.`}
+          description="choose your size and how many."
+          options={picker.variants.map((v) => ({ id: v.id, label: v.label, priceCents: v.price_cents }))}
+          quantities={pDraft}
+          onQuantityChange={pChange}
+          message={pMsg}
+          confirmLabel={!open ? "preorders closed" : itemQty(picker) > 0 ? "update cart" : "add to cart"}
+          confirmTotalCents={picker.variants.reduce((s, v) => s + (pDraft[v.id] ?? 0) * v.price_cents, 0)}
+          confirmDisabled={!open || (pTotal === 0 && itemQty(picker) === 0)}
+          onConfirm={pConfirm}
+        />
       )}
     </section>
   );

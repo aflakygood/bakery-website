@@ -5,12 +5,13 @@ import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { itemImage } from "@/lib/itemImage";
 import { usePageMeta } from "@/lib/seo";
+import { MAX_VARIANTS, parseVariants, type Variant } from "@/lib/variants";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
 type Order = { id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean; items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null; status: string; is_test: boolean; created_at: string };
-type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null; archived: boolean };
+type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; variants?: Variant[]; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null; archived: boolean };
 // Items in a stock group share the group's spots instead of having their own.
 type Group = { id: string; name: string; total_qty: number; sort: number };
 type Drop = PickupFields & DropSchedule & { id: string; title: string };
@@ -27,7 +28,9 @@ const phaseLabel = { upcoming: "not live yet", open: "taking preorders", ended: 
 
 type DropDraft = { title: string; opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
 // group is the key of a GroupRow, or "" when the item has its own spots.
-type ItemDraft = { name: string; price: string; total_qty: string; min_per_order: string; max_per_order: string; description: string; ingredients: string; image_url: string | null; group: string };
+// variants: optional sizes/options, each with its own price; when present they replace the single price.
+type VariantDraft = { id: string; label: string; price: string };
+type ItemDraft = { name: string; price: string; variants: VariantDraft[]; total_qty: string; min_per_order: string; max_per_order: string; description: string; ingredients: string; image_url: string | null; group: string };
 type GroupDraft = { name: string; total_qty: string };
 type GroupRow = { key: string; id: string | null; draft: GroupDraft };
 // One editable menu row. id is null for items added here that haven't been saved yet.
@@ -44,6 +47,7 @@ const dropDraftOf = (d: Drop): DropDraft => ({
 const itemDraftOf = (i: Item): ItemDraft => ({
   name: i.name,
   price: String(i.price_cents / 100),
+  variants: parseVariants(i.variants).map((v) => ({ id: v.id, label: v.label, price: String(v.price_cents / 100) })),
   total_qty: String(i.total_qty),
   min_per_order: String(i.min_per_order ?? 1),
   max_per_order: String(i.max_per_order),
@@ -55,7 +59,7 @@ const itemDraftOf = (i: Item): ItemDraft => ({
 const groupDraftOf = (g: Group): GroupDraft => ({ name: g.name, total_qty: String(g.total_qty) });
 const groupRowsOf = (groups: Group[]): GroupRow[] => groups.map((g) => ({ key: g.id, id: g.id, draft: groupDraftOf(g) }));
 const rowsOf = (items: Item[]): Row[] => items.filter((item) => !item.archived).map((item) => ({ key: item.id, id: item.id, draft: itemDraftOf(item), file: null, preview: null }));
-const blankDraft: ItemDraft = { name: "", price: "", total_qty: "0", min_per_order: "1", max_per_order: "2", description: "", ingredients: "", image_url: null, group: "" };
+const blankDraft: ItemDraft = { name: "", price: "", variants: [], total_qty: "0", min_per_order: "1", max_per_order: "2", description: "", ingredients: "", image_url: null, group: "" };
 const photoTypes: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 const same = (a: object, b: object) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -169,6 +173,22 @@ export default function Admin() {
     setGroupRows((all) => all.filter((row) => row.key !== key));
     setRows((all) => all.map((row) => (row.draft.group === key ? { ...row, draft: { ...row.draft, group: "" } } : row)));
   };
+  const addVariant = (key: string) => {
+    setNotice(null);
+    setRows((all) => all.map((row) => (row.key === key && row.draft.variants.length < MAX_VARIANTS
+      ? { ...row, draft: { ...row.draft, variants: [...row.draft.variants, { id: crypto.randomUUID().replace(/-/g, "").slice(0, 8), label: "", price: "" }] } }
+      : row)));
+  };
+  const editVariant = (key: string, id: string, patch: Partial<VariantDraft>) => {
+    setNotice(null);
+    setRows((all) => all.map((row) => (row.key === key
+      ? { ...row, draft: { ...row.draft, variants: row.draft.variants.map((v) => (v.id === id ? { ...v, ...patch } : v)) } }
+      : row)));
+  };
+  const removeVariant = (key: string, id: string) => {
+    setNotice(null);
+    setRows((all) => all.map((row) => (row.key === key ? { ...row, draft: { ...row.draft, variants: row.draft.variants.filter((v) => v.id !== id) } } : row)));
+  };
   const removeItem = (row: Row) => {
     if (row.preview) URL.revokeObjectURL(row.preview);
     setNotice(null);
@@ -206,18 +226,31 @@ export default function Admin() {
     }
 
     const changed = rows.filter(rowChanged);
-    const fields: Record<string, Pick<Item, "name" | "price_cents" | "total_qty" | "min_per_order" | "max_per_order" | "description" | "ingredients">> = {};
+    const fields: Record<string, Pick<Item, "name" | "price_cents" | "total_qty" | "min_per_order" | "max_per_order" | "description" | "ingredients"> & { variants: Variant[] }> = {};
     for (const row of changed) {
       const d = row.draft, name = d.name.trim();
       if (!name) return setNotice({ ok: false, text: "every item needs a name." });
       if (name.length > 80) return setNotice({ ok: false, text: `${name.slice(0, 20)}… is too long a name (80 characters max).` });
+      const variants: Variant[] = [];
+      const variantLabels = new Set<string>();
+      for (const v of d.variants) {
+        const label = v.label.trim(), variantPrice = Number(v.price);
+        if (!label) return setNotice({ ok: false, text: `every variation of ${name} needs a name.` });
+        if (label.length > 40) return setNotice({ ok: false, text: `${label.slice(0, 20)}… is too long a variation name (40 characters max).` });
+        if (variantLabels.has(label.toLowerCase())) return setNotice({ ok: false, text: `${name} has two variations called ${label}.` });
+        variantLabels.add(label.toLowerCase());
+        if (v.price === "" || !Number.isFinite(variantPrice) || variantPrice < 0) return setNotice({ ok: false, text: `check the price for ${name} (${label}).` });
+        variants.push({ id: v.id, label, price_cents: Math.round(variantPrice * 100) });
+      }
       const price = Number(d.price), qty = Number(d.total_qty), min = Number(d.min_per_order), max = Number(d.max_per_order);
-      if (d.price === "" || !Number.isFinite(price) || price < 0) return setNotice({ ok: false, text: `check the price for ${name}.` });
+      if (!variants.length && (d.price === "" || !Number.isFinite(price) || price < 0)) return setNotice({ ok: false, text: `check the price for ${name}.` });
       if (d.total_qty === "" || !Number.isInteger(qty) || qty < 0) return setNotice({ ok: false, text: `total spots for ${name} must be a whole number.` });
       if (!Number.isInteger(max) || max < 1) return setNotice({ ok: false, text: `max / order for ${name} must be at least 1.` });
       if (!Number.isInteger(min) || min < 1) return setNotice({ ok: false, text: `min / order for ${name} must be at least 1.` });
       if (min > max) return setNotice({ ok: false, text: `min / order for ${name} can't be more than max / order.` });
-      fields[row.key] = { name, price_cents: Math.round(price * 100), total_qty: qty, min_per_order: min, max_per_order: max, description: d.description, ingredients: d.ingredients.trim() };
+      // With variations the item's own price is just the lowest one (the menu shows "from $x").
+      const priceCents = variants.length ? Math.min(...variants.map((v) => v.price_cents)) : Math.round(price * 100);
+      fields[row.key] = { name, price_cents: priceCents, variants, total_qty: qty, min_per_order: min, max_per_order: max, description: d.description, ingredients: d.ingredients.trim() };
     }
 
     setSaving(true);
@@ -459,7 +492,10 @@ export default function Admin() {
                         </label>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                           <label className="font-mono text-[11px] text-primary/60">price $
-                            <input type="number" min={0} step="0.5" inputMode="decimal" className={field} value={d.price} onChange={(event) => editItem(row.key, { price: event.target.value })} />
+                            <input type="number" min={0} step="0.5" inputMode="decimal" className={`${field} disabled:opacity-40`} value={d.variants.length ? "" : d.price}
+                              disabled={d.variants.length > 0} placeholder={d.variants.length ? "see variations" : undefined}
+                              title={d.variants.length ? "this item is priced by its variations below" : undefined}
+                              onChange={(event) => editItem(row.key, { price: event.target.value })} />
                           </label>
                           <label className="font-mono text-[11px] text-primary/60">total spots
                             <input type="number" min={0} inputMode="numeric" className={`${field} disabled:opacity-40`} disabled={!!groupRow}
@@ -481,6 +517,37 @@ export default function Admin() {
                             </select>
                           </label>
                         )}
+                        <div>
+                          <p className="font-mono text-[11px] text-primary/60" title="e.g. mini $8 and 8&quot;x8&quot; $24">
+                            variations (optional). customers pick from a pop-up when they tap +, each with its own price. all variations share this item's spots.
+                          </p>
+                          {d.variants.length > 0 && (
+                            <ul className="mt-1 space-y-2">
+                              {d.variants.map((v, index) => (
+                                <li key={v.id} className="grid grid-cols-[1fr_6rem_auto] items-end gap-2">
+                                  <label className="font-mono text-[11px] text-primary/60">name
+                                    <input className={field} value={v.label} maxLength={40} placeholder={index === 0 ? "e.g. mini" : 'e.g. 8"x8"'}
+                                      aria-label={`variation ${index + 1} name for ${label}`}
+                                      onChange={(event) => editVariant(row.key, v.id, { label: event.target.value })} />
+                                  </label>
+                                  <label className="font-mono text-[11px] text-primary/60">price $
+                                    <input type="number" min={0} step="0.5" inputMode="decimal" className={field} value={v.price}
+                                      aria-label={`variation ${index + 1} price for ${label}`}
+                                      onChange={(event) => editVariant(row.key, v.id, { price: event.target.value })} />
+                                  </label>
+                                  <button onClick={() => removeVariant(row.key, v.id)} aria-label={`remove variation ${v.label.trim() || index + 1} from ${label}`}
+                                    className="pb-2 font-mono text-[11px] text-destructive underline">remove</button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {d.variants.length < MAX_VARIANTS && (
+                            <button onClick={() => addVariant(row.key)} aria-label={`add variation to ${label}`}
+                              className="mt-2 w-full rounded-md border border-dashed border-primary/40 py-1.5 font-mono text-[11px] text-primary">
+                              + add variation
+                            </button>
+                          )}
+                        </div>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           {item && (
                             <p className="font-mono text-[11px] text-primary/60">
