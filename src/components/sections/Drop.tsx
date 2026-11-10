@@ -45,17 +45,10 @@ export default function Drop() {
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{drop?.pickup_location || "near summit park, maple valley"}</span>
             </p>
-            {phase === "open" ? (
-              <Link to="/preorder"
-                className="mt-7 flex items-center justify-center gap-2 rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">
-                preorder menu <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            ) : (
-              <p aria-disabled="true"
-                className="mt-7 flex items-center justify-center rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground opacity-50">
-                preorders closed
-              </p>
-            )}
+            <Link to="/preorder"
+              className="mt-7 flex items-center justify-center gap-2 rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">
+              {phase === "open" ? "preorder menu" : "view menu"} <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </article>
       </div>

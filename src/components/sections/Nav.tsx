@@ -29,17 +29,10 @@ export default function Nav() {
           <img src={logoIcon} alt="a flaky good." className="h-11 w-11 md:h-12 md:w-12" />
         </a>
         <div className="flex items-center gap-7">
-          {preorderClosed ? (
-            <span aria-disabled="true" title="preorders are closed"
-              className="cursor-not-allowed rounded-[6px] border border-primary px-4 py-2 font-mono text-[14px] lowercase tracking-brand text-primary opacity-40 md:px-5 md:py-2.5 md:text-[15px]">
-              preorders closed
-            </span>
-          ) : (
-            <Link to="/preorder"
-              className="rounded-[6px] border border-primary bg-primary px-4 py-2 font-mono text-[14px] lowercase tracking-brand text-white transition-colors hover:bg-[hsl(var(--green-deep))] md:px-5 md:py-2.5 md:text-[15px]">
-              preorder
-            </Link>
-          )}
+          <Link to="/preorder"
+            className="rounded-[6px] border border-primary bg-primary px-4 py-2 font-mono text-[14px] lowercase tracking-brand text-white transition-colors hover:bg-[hsl(var(--green-deep))] md:px-5 md:py-2.5 md:text-[15px]">
+            {preorderClosed ? "view menu" : "preorder"}
+          </Link>
           <a href="https://www.instagram.com/aflakygood/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className={icon}>
             <Instagram className="h-5 w-5" />
           </a>
