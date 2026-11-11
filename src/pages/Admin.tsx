@@ -71,6 +71,7 @@ export default function Admin() {
   const [drop, setDrop] = useState<Drop | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [liveDrop, setLiveDrop] = useState<{ title: string; schedule: DropSchedule; paidOrders: number } | null>(null);
   const [dropDraft, setDropDraft] = useState<DropDraft | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -104,7 +105,13 @@ export default function Admin() {
     const { data: dropItems } = await supabase.from("drop_items").select("*").eq("drop_id", latestDrop.id).order("sort");
     setItems((dropItems ?? []) as Item[]);
     if (resetDrafts) setRows(rowsOf((dropItems ?? []) as Item[]));
-    if (kind === "future") return setOrders([]);
+    if (kind === "future") {
+      setOrders([]);
+      const { data: live } = await supabase.from("drops").select("*").eq("is_draft", false).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (!live) return setLiveDrop(null);
+      const { count } = await supabase.from("orders").select("id", { count: "exact", head: true }).eq("drop_id", live.id).in("status", ["paid", "picked_up"]);
+      return setLiveDrop({ title: live.title, schedule: live, paidOrders: count ?? 0 });
+    }
     const { data: paidOrders } = await supabase.from("orders").select("*").eq("drop_id", latestDrop.id).in("status", ["paid", "picked_up"]).order("created_at");
     setOrders((paidOrders ?? []) as unknown as Order[]);
   };
@@ -369,7 +376,8 @@ export default function Admin() {
     setNotice({ ok: true, text: "future drop discarded." });
     await load(true, "future");
   };
-  const confirmCopy = {
+  type ConfirmCopy = { title: string; body: string; steps?: string[]; warning?: string; action: string; run: () => unknown };
+  const confirmCopy: Record<"close" | "next" | "publish" | "discard", ConfirmCopy> = {
     close: { title: "close preorders now?", body: "customers won't be able to order from this drop until you reopen it.", action: "close now", run: () => setOpen(false) },
     next: {
       title: "start the next drop?",
@@ -379,7 +387,21 @@ export default function Admin() {
     },
     publish: {
       title: "make this the current drop?",
-      body: `this ends the current drop now and saves it, with all its orders, under previous drops. the future drop takes its place with an empty paid orders list and goes live at its open time.${dropDraft?.opens_at ? "" : " you haven't set an open time yet, so customers won't see it until you do."}`,
+      body: "here's what happens when you confirm:",
+      steps: [
+        liveDrop
+          ? `the current drop "${liveDrop.title}" is closed now and saved under previous drops${liveDrop.paidOrders ? `, with its ${liveDrop.paidOrders} paid ${liveDrop.paidOrders === 1 ? "order" : "orders"}` : ""}.`
+          : "there's no current drop to close.",
+        "this future drop becomes the current drop, with its menu, photos, prices, spots, pickup details and schedule exactly as you saved them.",
+        "its paid orders list starts empty.",
+        dropDraft?.opens_at
+          ? "customers see it from its open time, or right away if that time has passed."
+          : "you haven't set an open time, so customers won't see it until you set one on the this drop tab.",
+        "the future drop slot is empty again so you can plan another.",
+      ],
+      warning: liveDrop && ["open", "upcoming"].includes(dropPhase(liveDrop.schedule, now))
+        ? `the current drop "${liveDrop.title}" is ${dropPhase(liveDrop.schedule, now) === "open" ? "still taking preorders" : "scheduled to go live"}. it will be replaced and customers will no longer be able to order from it.`
+        : undefined,
       action: "make current",
       run: publishFutureDrop,
     },
@@ -677,6 +699,16 @@ export default function Admin() {
               <AlertDialogHeader>
                 <AlertDialogTitle className="font-display text-2xl font-black tracking-brand text-primary">{confirmCopy[confirming].title}</AlertDialogTitle>
                 <AlertDialogDescription className="font-mono text-[12px] text-primary/70">{confirmCopy[confirming].body}</AlertDialogDescription>
+                {confirmCopy[confirming].warning && (
+                  <p role="alert" className="rounded-sm border border-destructive/40 bg-destructive/10 p-3 font-mono text-[12px] font-bold text-destructive">
+                    warning: {confirmCopy[confirming].warning}
+                  </p>
+                )}
+                {confirmCopy[confirming].steps && (
+                  <ul className="list-disc space-y-1 pl-4 text-left font-mono text-[12px] text-primary/70">
+                    {confirmCopy[confirming].steps!.map((step) => <li key={step}>{step}</li>)}
+                  </ul>
+                )}
               </AlertDialogHeader>
               <AlertDialogFooter className="gap-2">
                 <AlertDialogCancel className="rounded-sm border-primary font-mono text-[12px] text-primary">cancel</AlertDialogCancel>

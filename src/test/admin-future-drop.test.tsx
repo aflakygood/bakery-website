@@ -106,6 +106,25 @@ describe("future drop tab", () => {
     expect(screen.getByRole("tab", { name: "this drop" })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("warns that an active current drop will be replaced, and explains what happens", async () => {
+    db.drops.push(drop("future", "next week", true));
+    await openFuture();
+    fireEvent.click(await screen.findByRole("button", { name: "make current drop" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/"this week" is still taking preorders. it will be replaced/);
+    expect(within(dialog).getByText(/closed now and saved under previous drops/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/paid orders list starts empty/)).toBeInTheDocument();
+  });
+
+  it("shows no warning when the current drop has ended or is closed", async () => {
+    db.drops = [{ ...drop("live", "this week", false), closes_at: "2020-02-01T00:00:00Z" }, drop("future", "next week", true)];
+    await openFuture();
+    fireEvent.click(await screen.findByRole("button", { name: "make current drop" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(await within(dialog).findByText(/closed now and saved under previous drops/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("only deletes a drop that is still a draft when discarding", async () => {
     db.drops.push(drop("future", "next week", true));
     await openFuture();
