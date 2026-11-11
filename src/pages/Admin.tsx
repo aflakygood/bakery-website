@@ -6,6 +6,7 @@ import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { itemImage } from "@/lib/itemImage";
 import { usePageMeta } from "@/lib/seo";
 import { MAX_VARIANTS, parseVariants, type Variant } from "@/lib/variants";
+import PreviousDrops from "@/components/admin/PreviousDrops";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -78,6 +79,7 @@ export default function Admin() {
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirming, setConfirming] = useState<"close" | "next" | null>(null);
   const [confirmingItem, setConfirmingItem] = useState<Row | null>(null);
+  const [tab, setTab] = useState<"current" | "previous">("current");
   const now = useNow();
 
   useEffect(() => {
@@ -322,7 +324,8 @@ export default function Admin() {
   const startNextDrop = async () => {
     const { error } = await supabase.rpc("start_next_drop");
     if (error) return setNotice({ ok: false, text: `couldn't start the next drop: ${error.message}` });
-    setNotice({ ok: true, text: "next drop started. set the quantities and open time, then save." });
+    setNotice({ ok: true, text: "next drop started. set the quantities and open time, then save. the last drop and its orders are saved under previous drops." });
+    setTab("current");
     await load(true);
   };
   const markPicked = async (id: string) => {
@@ -333,7 +336,7 @@ export default function Admin() {
     close: { title: "close preorders now?", body: "customers won't be able to order from this drop until you reopen it.", action: "close now", run: () => setOpen(false) },
     next: {
       title: "start the next drop?",
-      body: `this ends the current drop now. the new drop copies the items, prices and stock groups with 0 spots, and stays hidden until you set its open time.${dirty ? " your unsaved changes will be discarded." : ""}`,
+      body: `this ends the current drop now and saves it, with all its orders, under previous drops. the new drop starts with an empty paid orders list, copies the items, prices and stock groups with 0 spots, and stays hidden until you set its open time.${dirty ? " your unsaved changes will be discarded." : ""}`,
       action: "start next drop",
       run: startNextDrop,
     },
@@ -382,7 +385,18 @@ export default function Admin() {
           <button className="font-mono text-[12px] text-primary underline" onClick={() => void supabase.auth.signOut()}>sign out</button>
         </div>
 
-        {drop && (
+        <div role="tablist" aria-label="drops" className="flex gap-2 font-mono text-[12px]">
+          {([["current", "this drop"], ["previous", "previous drops"]] as const).map(([key, label]) => (
+            <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+              className={`rounded-sm border border-primary px-4 py-2 ${tab === key ? "bg-primary text-primary-foreground" : "text-primary"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "previous" && <PreviousDrops currentDropId={drop?.id ?? null} />}
+
+        {tab === "current" && drop && (
           <section className={box}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -620,7 +634,7 @@ export default function Admin() {
           )}
         </AlertDialog>
 
-        <section className={box}>
+        {tab === "current" && <section className={box}>
           <h2 className="font-display text-2xl font-black tracking-brand text-primary">paid orders ({orders.length}).</h2>
           {orders.length === 0 && <p className="mt-3 font-mono text-[13px] text-primary/60">no orders yet.</p>}
           <ul className="mt-3 divide-y divide-primary/10">
@@ -635,7 +649,7 @@ export default function Admin() {
               </li>
             ))}
           </ul>
-        </section>
+        </section>}
       </div>
     </div>
   );

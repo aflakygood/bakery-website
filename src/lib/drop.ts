@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatPickupDate } from "./pickup";
 
 export type DropSchedule = { is_open: boolean; opens_at: string | null; closes_at: string | null };
 // upcoming: not started (or not scheduled) · open: taking orders · ended: past closes_at · closed: admin closed it early
@@ -8,6 +9,15 @@ export function dropPhase(d: DropSchedule, now = Date.now()): DropPhase {
   if (!d.opens_at || now < Date.parse(d.opens_at)) return "upcoming";
   if (d.closes_at && now >= Date.parse(d.closes_at)) return "ended";
   return d.is_open ? "open" : "closed";
+}
+
+// "the drop's name · pickup date"; drops without a pickup date fall back to the day they were created.
+export function pastDropTitle(drop: { title: string; pickup_date: string | null; created_at: string }) {
+  const name = drop.title?.trim() || "this week's drop";
+  const when = drop.pickup_date
+    ? formatPickupDate(drop.pickup_date)
+    : `created ${new Date(drop.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  return `${name} · ${when}`;
 }
 
 // Re-renders periodically so a page left open flips to open/sold out at the scheduled time.
