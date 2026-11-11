@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
     const { data: drop } = await db.from("drops").select("*").eq("id", input.drop_id).maybeSingle();
     const now = Date.now();
-    const live = !!drop && drop.is_open && !!drop.opens_at && Date.parse(drop.opens_at) <= now
+    const live = !!drop && !drop.is_draft && drop.is_open && !!drop.opens_at && Date.parse(drop.opens_at) <= now
       && (!drop.closes_at || Date.parse(drop.closes_at) > now);
     if (!live) return json({ error: "Preorders are closed for this drop." }, 400);
 

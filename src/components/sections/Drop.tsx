@@ -14,7 +14,7 @@ export default function Drop() {
   const now = useNow();
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    supabase.from("drops").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle()
+    supabase.from("drops").select("*").eq("is_draft", false).order("created_at", { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => { setDrop(data); setLoaded(true); });
   }, []);
 

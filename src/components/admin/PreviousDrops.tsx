@@ -5,7 +5,7 @@ import { itemImage } from "@/lib/itemImage";
 import { lowestPrice, money as menuPrice, parseVariants } from "@/lib/variants";
 
 type PastDrop = { id: string; title: string; pickup_date: string | null; created_at: string };
-type PastItem = { id: string; drop_id: string; name: string; price_cents: number; variants?: unknown; total_qty: number; sort: number; image_url: string | null };
+type PastItem = { id: string; drop_id: string; name: string; price_cents: number; variants?: unknown; total_qty: number; sort: number; image_url: string | null; archived: boolean };
 type PastOrder = {
   id: string; drop_id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean;
   items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null;
@@ -14,7 +14,7 @@ type PastOrder = {
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-export default function PreviousDrops({ currentDropId }: { currentDropId: string | null }) {
+export default function PreviousDrops() {
   const [drops, setDrops] = useState<PastDrop[] | null>(null);
   const [orders, setOrders] = useState<PastOrder[]>([]);
   const [menu, setMenu] = useState<PastItem[]>([]);
@@ -24,26 +24,26 @@ export default function PreviousDrops({ currentDropId }: { currentDropId: string
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: allDrops, error: dropsError } = await supabase.from("drops").select("*").order("created_at", { ascending: false });
+      const { data: allDrops, error: dropsError } = await supabase.from("drops").select("*").eq("is_draft", false).order("created_at", { ascending: false });
       if (cancelled) return;
       if (dropsError) return setError(dropsError.message);
-      const past = ((allDrops ?? []) as PastDrop[]).filter((d) => d.id !== currentDropId);
+      // Newest first, so the first one is the current drop.
+      const past = ((allDrops ?? []) as PastDrop[]).slice(1);
       if (past.length) {
         const { data: paid, error: ordersError } = await supabase.from("orders").select("*")
           .in("drop_id", past.map((d) => d.id)).in("status", ["paid", "picked_up"]).order("created_at");
         if (cancelled) return;
         if (ordersError) return setError(ordersError.message);
         setOrders((paid ?? []) as unknown as PastOrder[]);
-        // Includes archived items: they were on that drop's menu.
         const { data: menuItems, error: menuError } = await supabase.from("drop_items").select("*").in("drop_id", past.map((d) => d.id)).order("sort");
         if (cancelled) return;
         if (menuError) return setError(menuError.message);
-        setMenu((menuItems ?? []) as PastItem[]);
+        setMenu(((menuItems ?? []) as PastItem[]).filter((i) => !i.archived));
       }
       setDrops(past);
     })();
     return () => { cancelled = true; };
-  }, [currentDropId]);
+  }, []);
 
   if (error) return <p role="alert" className="font-mono text-[13px] text-destructive">couldn't load previous drops: {error}</p>;
   if (!drops) return <p className="font-mono text-[13px] text-primary/60">loading…</p>;

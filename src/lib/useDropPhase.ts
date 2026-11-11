@@ -8,7 +8,7 @@ export function useDropPhase(): DropPhase | null {
   const now = useNow();
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    supabase.from("drops").select("is_open, opens_at, closes_at").order("created_at", { ascending: false }).limit(1).maybeSingle()
+    supabase.from("drops").select("is_open, opens_at, closes_at").eq("is_draft", false).order("created_at", { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => setDrop(data));
   }, []);
   return drop ? dropPhase(drop, now) : null;

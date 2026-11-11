@@ -100,7 +100,7 @@ export default function OrderMenu() {
 
   const load = async () => {
     if (!isSupabaseConfigured) return;
-    const { data: d } = await supabase.from("drops").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: d } = await supabase.from("drops").select("*").eq("is_draft", false).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!d) { setLoaded(true); return; }
     setDrop(d);
     const { data: its, error: itemsError } = await supabase.from("drop_items").select("*").eq("drop_id", d.id).eq("archived", false).order("sort");

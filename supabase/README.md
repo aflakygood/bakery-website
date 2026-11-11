@@ -62,3 +62,21 @@ from their names. It skips items that already have variations.
 All variations of an item share that item's spots (and stock group), one spot
 per unit, and the per-order min/max apply to the combined quantity. Order lines
 are named "item name — variation label".
+
+## Future drop
+
+Apply `drizzle/migrations/0017_future_drop.sql` **before** publishing the updated
+frontend, then redeploy `create-checkout`. The frontend filters on the new
+`drops.is_draft` column, so the site errors if it ships before the migration.
+
+`/admin` has three tabs: **future drop**, **this drop**, **previous drops**. The
+future drop is a `drops` row with `is_draft = true`, so it can be planned (details,
+schedule, items, photos, stock groups) without touching the live drop. Customers
+can't read it (RLS) or order from it (`create-checkout` rejects drafts), and it
+never counts as the latest drop. Only one future drop exists at a time.
+
+- **plan a future drop** (`create_future_drop`) copies the current menu with 0 spots.
+- **make current drop** (`publish_future_drop`) closes the current drop (it moves to
+  previous drops with its orders) and makes the planned drop the latest. It goes
+  live at its own open time; with no open time it stays hidden until one is set.
+- **discard future drop** deletes the draft and its items.

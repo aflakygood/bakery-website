@@ -15,7 +15,7 @@ type Order = { id: string; customer_name: string; email: string; phone: string; 
 type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; variants?: Variant[]; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null; archived: boolean };
 // Items in a stock group share the group's spots instead of having their own.
 type Group = { id: string; name: string; total_qty: number; sort: number };
-type Drop = PickupFields & DropSchedule & { id: string; title: string };
+type Drop = PickupFields & DropSchedule & { id: string; title: string; is_draft?: boolean };
 
 // <input type="datetime-local"> works in the admin's local time; the database stores UTC.
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -77,9 +77,11 @@ export default function Admin() {
   const [groupRows, setGroupRows] = useState<GroupRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
-  const [confirming, setConfirming] = useState<"close" | "next" | null>(null);
+  const [confirming, setConfirming] = useState<"close" | "next" | "publish" | "discard" | null>(null);
   const [confirmingItem, setConfirmingItem] = useState<Row | null>(null);
-  const [tab, setTab] = useState<"current" | "previous">("current");
+  const [tab, setTab] = useState<"future" | "current" | "previous">("current");
+  const [loading, setLoading] = useState(false);
+  const planning = tab === "future";
   const now = useNow();
 
   useEffect(() => {
@@ -90,8 +92,9 @@ export default function Admin() {
   }, []);
 
   // resetDrafts=false keeps unsaved edits (e.g. after marking an order picked up).
-  const load = async (resetDrafts = true) => {
-    const { data: latestDrop } = await supabase.from("drops").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  // kind picks which drop the editor works on: the live (latest) drop, or the planned future drop.
+  const load = async (resetDrafts = true, kind: "future" | "current" = "current") => {
+    const { data: latestDrop } = await supabase.from("drops").select("*").eq("is_draft", kind === "future").order("created_at", { ascending: false }).limit(1).maybeSingle();
     setDrop(latestDrop);
     if (resetDrafts) setDropDraft(latestDrop ? dropDraftOf(latestDrop) : null);
     if (!latestDrop) return;
@@ -101,6 +104,7 @@ export default function Admin() {
     const { data: dropItems } = await supabase.from("drop_items").select("*").eq("drop_id", latestDrop.id).order("sort");
     setItems((dropItems ?? []) as Item[]);
     if (resetDrafts) setRows(rowsOf((dropItems ?? []) as Item[]));
+    if (kind === "future") return setOrders([]);
     const { data: paidOrders } = await supabase.from("orders").select("*").eq("drop_id", latestDrop.id).in("status", ["paid", "picked_up"]).order("created_at");
     setOrders((paidOrders ?? []) as unknown as Order[]);
   };
@@ -305,7 +309,7 @@ export default function Admin() {
     }
     setSaving(false);
     setNotice(error ? { ok: false, text: `couldn't save: ${error}` } : { ok: true, text: "saved." });
-    await load(!error);
+    await load(!error, drop.is_draft ? "future" : "current");
   };
   const discard = () => {
     if (!drop) return;
@@ -332,6 +336,39 @@ export default function Admin() {
     await supabase.from("orders").update({ status: "picked_up" }).eq("id", id);
     void load(false);
   };
+  const switchTab = async (next: "future" | "current" | "previous") => {
+    if (next === tab) return;
+    if (dirty && !window.confirm("you have unsaved changes. discard them?")) return;
+    setNotice(null);
+    if (next === "previous") {
+      discard();
+      return setTab(next);
+    }
+    setTab(next);
+    setLoading(true);
+    await load(true, next);
+    setLoading(false);
+  };
+  const planFutureDrop = async () => {
+    const { error } = await supabase.rpc("create_future_drop");
+    if (error) return setNotice({ ok: false, text: `couldn't create the future drop: ${error.message}` });
+    setNotice({ ok: true, text: "future drop created from the current menu. set the details, quantities and open time, then save." });
+    await load(true, "future");
+  };
+  const publishFutureDrop = async () => {
+    const { error } = await supabase.rpc("publish_future_drop");
+    if (error) return setNotice({ ok: false, text: `couldn't make it the current drop: ${error.message}` });
+    setNotice({ ok: true, text: "the future drop is now the current drop. the last drop and its orders are saved under previous drops." });
+    setTab("current");
+    await load(true, "current");
+  };
+  const discardFutureDrop = async () => {
+    if (!drop?.is_draft) return;
+    const { error } = await supabase.from("drops").delete().eq("id", drop.id).eq("is_draft", true);
+    if (error) return setNotice({ ok: false, text: `couldn't discard the future drop: ${error.message}` });
+    setNotice({ ok: true, text: "future drop discarded." });
+    await load(true, "future");
+  };
   const confirmCopy = {
     close: { title: "close preorders now?", body: "customers won't be able to order from this drop until you reopen it.", action: "close now", run: () => setOpen(false) },
     next: {
@@ -339,6 +376,18 @@ export default function Admin() {
       body: `this ends the current drop now and saves it, with all its orders, under previous drops. the new drop starts with an empty paid orders list, copies the items, prices and stock groups with 0 spots, and stays hidden until you set its open time.${dirty ? " your unsaved changes will be discarded." : ""}`,
       action: "start next drop",
       run: startNextDrop,
+    },
+    publish: {
+      title: "make this the current drop?",
+      body: `this ends the current drop now and saves it, with all its orders, under previous drops. the future drop takes its place with an empty paid orders list and goes live at its open time.${dropDraft?.opens_at ? "" : " you haven't set an open time yet, so customers won't see it until you do."}`,
+      action: "make current",
+      run: publishFutureDrop,
+    },
+    discard: {
+      title: "discard the future drop?",
+      body: "this deletes the planned drop and everything in it. the current drop isn't affected.",
+      action: "discard",
+      run: discardFutureDrop,
     },
   };
 
@@ -386,30 +435,51 @@ export default function Admin() {
         </div>
 
         <div role="tablist" aria-label="drops" className="flex gap-2 font-mono text-[12px]">
-          {([["current", "this drop"], ["previous", "previous drops"]] as const).map(([key, label]) => (
-            <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+          {([["future", "future drop"], ["current", "this drop"], ["previous", "previous drops"]] as const).map(([key, label]) => (
+            <button key={key} role="tab" aria-selected={tab === key} onClick={() => void switchTab(key)}
               className={`rounded-sm border border-primary px-4 py-2 ${tab === key ? "bg-primary text-primary-foreground" : "text-primary"}`}>
               {label}
             </button>
           ))}
         </div>
 
-        {tab === "previous" && <PreviousDrops currentDropId={drop?.id ?? null} />}
+        {tab === "previous" && <PreviousDrops />}
 
-        {tab === "current" && drop && (
+        {tab === "future" && !loading && !drop && (
+          <section className={box}>
+            <h2 className="font-display text-2xl font-black tracking-brand text-primary">future drop.</h2>
+            <p className="mt-2 font-mono text-[12px] text-primary/70">no future drop planned yet. plan the next one here without touching the current drop, then make it current with one click.</p>
+            <button onClick={() => void planFutureDrop()} className="mt-4 rounded-sm bg-primary px-4 py-2 font-mono text-[12px] text-primary-foreground">plan a future drop</button>
+            {notice && <p role="status" className={`mt-3 font-mono text-[12px] ${notice.ok ? "text-primary/70" : "text-destructive"}`}>{notice.text}</p>}
+          </section>
+        )}
+
+        {tab !== "previous" && drop && !!drop.is_draft === planning && (
           <section className={box}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="font-display text-2xl font-black tracking-brand text-primary">this drop.</h2>
-                <p className="font-mono text-[12px] text-primary/70">status: {phaseLabel[dropPhase(drop, now)]}</p>
+                <h2 className="font-display text-2xl font-black tracking-brand text-primary">{planning ? "future drop." : "this drop."}</h2>
+                <p className="font-mono text-[12px] text-primary/70">
+                  {planning ? "planning only. customers can't see this until you make it the current drop." : `status: ${phaseLabel[dropPhase(drop, now)]}`}
+                </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => (drop.is_open ? setConfirming("close") : void setOpen(true))} className="rounded-sm border border-primary px-4 py-2 font-mono text-[12px] text-primary">
-                  {drop.is_open ? "close now" : "reopen"}
-                </button>
-                <button onClick={() => setConfirming("next")} className="rounded-sm bg-primary px-4 py-2 font-mono text-[12px] text-primary-foreground">
-                  start next drop
-                </button>
+                {planning ? (<>
+                  <button onClick={() => setConfirming("discard")} className="rounded-sm border border-primary px-4 py-2 font-mono text-[12px] text-primary">
+                    discard future drop
+                  </button>
+                  <button onClick={() => setConfirming("publish")} disabled={dirty || saving} title={dirty ? "save your changes first" : undefined}
+                    className="rounded-sm bg-primary px-4 py-2 font-mono text-[12px] text-primary-foreground disabled:opacity-40">
+                    make current drop
+                  </button>
+                </>) : (<>
+                  <button onClick={() => (drop.is_open ? setConfirming("close") : void setOpen(true))} className="rounded-sm border border-primary px-4 py-2 font-mono text-[12px] text-primary">
+                    {drop.is_open ? "close now" : "reopen"}
+                  </button>
+                  <button onClick={() => setConfirming("next")} className="rounded-sm bg-primary px-4 py-2 font-mono text-[12px] text-primary-foreground">
+                    start next drop
+                  </button>
+                </>)}
               </div>
             </div>
             {dropDraft && (<>
@@ -463,7 +533,7 @@ export default function Admin() {
                     </div>
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-primary/60">
                       <p>
-                        {group ? `sold ${groupSold(group.id)} / ${group.total_qty}` : "not saved yet"}
+                        {group ? (planning ? `${group.total_qty} spots` : `sold ${groupSold(group.id)} / ${group.total_qty}`) : "not saved yet"}
                         {" · "}{members.length ? members.join(", ") : "no items yet, pick this group on an item below"}
                       </p>
                       <button onClick={() => removeGroup(row.key)} aria-label={`remove group ${label}`} className="underline">remove group</button>
@@ -563,7 +633,7 @@ export default function Admin() {
                           )}
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          {item && (
+                          {item && !planning && (
                             <p className="font-mono text-[11px] text-primary/60">
                               {groupRow ? `sold ${sold(item)} · shares ${groupName} spots` : `sold ${sold(item)} / ${item.total_qty}`}
                             </p>
