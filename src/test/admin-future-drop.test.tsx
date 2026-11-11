@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Admin from "@/pages/Admin";
 
@@ -16,13 +16,17 @@ const db = vi.hoisted(() => ({
   items: [] as Record<string, unknown>[],
   rpc: vi.fn(),
   deleted: vi.fn(),
+  authListener: null as null | ((event: string, session: unknown) => void),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   isSupabaseConfigured: true,
   supabase: {
     auth: {
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),
+      onAuthStateChange: (listener: (event: string, session: unknown) => void) => {
+        db.authListener = listener;
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
+      },
       getSession: async () => ({ data: { session: { user: { id: "owner" } } } }),
     },
     rpc: async (name: string) => (name === "has_role" ? { data: true } : db.rpc(name)),
@@ -123,6 +127,19 @@ describe("future drop tab", () => {
     const dialog = screen.getByRole("alertdialog");
     expect(await within(dialog).findByText(/closed now and saved under previous drops/)).toBeInTheDocument();
     expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the future drop and unsaved edits when the session is re-emitted on window focus", async () => {
+    db.drops.push(drop("future", "next week", true));
+    await openFuture();
+    const title = await screen.findByDisplayValue("next week");
+    fireEvent.change(title, { target: { value: "edited title" } });
+    await act(async () => {
+      db.authListener?.("TOKEN_REFRESHED", { user: { id: "owner" } });
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("heading", { name: "future drop." })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("edited title")).toBeInTheDocument();
   });
 
   it("only deletes a drop that is still a draft when discarding", async () => {

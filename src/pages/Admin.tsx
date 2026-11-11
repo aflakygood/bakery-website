@@ -123,7 +123,8 @@ export default function Admin() {
       setIsAdmin(!!data);
       if (data) void load();
     });
-  }, [session]);
+  // Keyed on the user id: Supabase re-emits the session when the tab regains focus, which must not reload and wipe unsaved edits.
+  }, [session?.user.id]);
 
   const signIn = () => supabase.auth.signInWithOAuth({
     provider: "google",
