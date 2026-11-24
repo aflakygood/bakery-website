@@ -5,7 +5,7 @@ import { itemImage } from "@/lib/itemImage";
 import { lowestPrice, money as menuPrice, parseVariants } from "@/lib/variants";
 
 type PastDrop = { id: string; title: string; pickup_date: string | null; created_at: string };
-type PastItem = { id: string; drop_id: string; name: string; price_cents: number; variants?: unknown; total_qty: number; sort: number; image_url: string | null; archived: boolean };
+type PastItem = { id: string; drop_id: string; name: string; price_cents: number; variants?: unknown; description?: string | null; ingredients?: string | null; total_qty: number; min_per_order?: number; max_per_order?: number; sort: number; image_url: string | null; archived: boolean };
 type PastOrder = {
   id: string; drop_id: string; customer_name: string; email: string; phone: string; sms_opt_in: boolean;
   items: { item_id?: string; name: string; qty: number }[]; total_cents: number; discount_code: string | null; discount_percent: number | null;
@@ -19,6 +19,7 @@ export default function PreviousDrops() {
   const [orders, setOrders] = useState<PastOrder[]>([]);
   const [menu, setMenu] = useState<PastItem[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [itemId, setItemId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -60,6 +61,8 @@ export default function PreviousDrops() {
           .filter((line) => (line.item_id ? line.item_id === item.id : line.name === item.name))
           .reduce((m, line) => m + line.qty, 0), 0);
         const open = openId === drop.id;
+        const selected = dropMenu.find((i) => i.id === itemId);
+        const selectedVariants = selected ? parseVariants(selected.variants) : [];
         const title = pastDropTitle(drop);
         return (
           <li key={drop.id} className="rounded-md bg-secondary p-5 md:p-6">
@@ -78,14 +81,34 @@ export default function PreviousDrops() {
                 <ul className="mt-1 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                   {dropMenu.map((item) => (
                     <li key={item.id}>
-                      <img src={itemImage(item.name, item.image_url).src} alt={item.name} loading="lazy" className="aspect-[4/5] w-full rounded-sm bg-background object-cover" />
-                      <p className="mt-1 font-mono text-[12px] font-bold text-primary">{item.name}</p>
-                      <p className="font-mono text-[11px] text-primary/70">
-                        {parseVariants(item.variants).length ? "from " : ""}{menuPrice(lowestPrice(item.price_cents, parseVariants(item.variants)))} · sold {soldOf(item)}
-                      </p>
+                      <button onClick={() => setItemId(itemId === item.id ? null : item.id)} aria-expanded={itemId === item.id} aria-label={`details for ${item.name}`}
+                        className={`block w-full rounded-sm text-left ${itemId === item.id ? "outline outline-2 outline-primary" : ""}`}>
+                        <img src={itemImage(item.name, item.image_url).src} alt={item.name} loading="lazy" className="aspect-[4/5] w-full rounded-sm bg-background object-cover" />
+                        <span className="mt-1 block font-mono text-[12px] font-bold text-primary">{item.name}</span>
+                        <span className="block font-mono text-[11px] text-primary/70">
+                          {parseVariants(item.variants).length ? "from " : ""}{menuPrice(lowestPrice(item.price_cents, parseVariants(item.variants)))} · sold {soldOf(item)}
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>
+                {selected && (
+                  <section aria-label={`${selected.name} details`} className="mt-3 rounded-md bg-background p-4 font-mono text-[12px] text-primary">
+                    <p className="font-bold">{selected.name}</p>
+                    <p className="text-primary/70">
+                      sold {soldOf(selected)} / {selected.total_qty} spots · {selected.min_per_order ?? 1}–{selected.max_per_order ?? 1} per order
+                    </p>
+                    {selectedVariants.length ? (
+                      <ul className="mt-2">
+                        {selectedVariants.map((v) => <li key={v.id}>{v.label} · {menuPrice(v.price_cents)}</li>)}
+                      </ul>
+                    ) : <p className="mt-2">{menuPrice(selected.price_cents)}</p>}
+                    <p className="mt-3 text-[11px] text-primary/60">description</p>
+                    <p className="whitespace-pre-wrap">{selected.description?.trim() || "none"}</p>
+                    <p className="mt-3 text-[11px] text-primary/60">ingredients</p>
+                    <p className="whitespace-pre-wrap">{selected.ingredients?.trim() || "none"}</p>
+                  </section>
+                )}
                 <p className="mt-4 font-mono text-[11px] text-primary/60">orders</p>
                 {dropOrders.length === 0 && <p className="font-mono text-[13px] text-primary/60">no paid orders for this drop.</p>}
                 <ul className="mt-2 divide-y divide-primary/10">

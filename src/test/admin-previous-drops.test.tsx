@@ -62,7 +62,7 @@ describe("previous drops", () => {
     ];
     db.orders = [order("a", "old", "alice", 2400), order("b", "old", "bob", 1200, "picked_up"), order("t", "old", "tester", 500, "paid", true), order("c", "new", "carol", 900)];
     db.items = [
-      { id: "i1", drop_id: "old", name: "sourdough", price_cents: 1200, variants: [], total_qty: 10, sort: 1, image_url: "https://cdn.test/old-sourdough.jpg", archived: false },
+      { id: "i1", drop_id: "old", name: "sourdough", description: "slow-fermented loaf", ingredients: "flour, water, salt", price_cents: 1200, variants: [], total_qty: 10, min_per_order: 1, max_per_order: 2, sort: 1, image_url: "https://cdn.test/old-sourdough.jpg", archived: false },
       { id: "i3", drop_id: "old", name: "deleted bun", price_cents: 400, variants: [], total_qty: 10, sort: 2, image_url: null, archived: true },
       { id: "i2", drop_id: "new", name: "croissant", price_cents: 500, variants: [], total_qty: 10, sort: 1, image_url: null, archived: false },
     ];
@@ -83,5 +83,14 @@ describe("previous drops", () => {
     expect(screen.getByRole("img", { name: "sourdough" })).toHaveAttribute("src", "https://cdn.test/old-sourdough.jpg");
     expect(screen.queryByRole("img", { name: "croissant" })).not.toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "deleted bun" })).not.toBeInTheDocument();
+
+    expect(screen.queryByText("slow-fermented loaf")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "details for sourdough" }));
+    const details = screen.getByRole("region", { name: "sourdough details" });
+    expect(details).toHaveTextContent("slow-fermented loaf");
+    expect(details).toHaveTextContent("flour, water, salt");
+    expect(details).toHaveTextContent("sold 2 / 10 spots · 1–2 per order");
+    fireEvent.click(screen.getByRole("button", { name: "details for sourdough" }));
+    expect(screen.queryByRole("region", { name: "sourdough details" })).not.toBeInTheDocument();
   });
 });
