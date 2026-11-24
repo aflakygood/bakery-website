@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
+import { mapHref } from "@/lib/maps";
 import { closesLabel, dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
@@ -15,7 +16,7 @@ import { lineKey, lineName, lowestPrice, money, parseVariants, type Variant } fr
 import VariantSheet from "@/components/VariantSheet";
 
 type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; variants: Variant[]; min_per_order: number; max_per_order: number; remaining: number; image_url: string | null; group_id: string | null };
-type DropRow = PickupFields & DropSchedule & { id: string; title: string };
+type DropRow = PickupFields & DropSchedule & { id: string; title: string; pickup_map_url?: string | null };
 type Confirmation = {
   customer_name: string;
   items: { name: string; qty: number; price_cents: number }[];
@@ -376,7 +377,10 @@ export default function OrderMenu() {
                   {drop.pickup_location && (
                     <li className="flex items-start gap-3">
                       <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                      <span>{drop.pickup_location}</span>
+                      <span>
+                        {drop.pickup_location}
+                        {mapHref(drop.pickup_map_url) && <a href={mapHref(drop.pickup_map_url)!} target="_blank" rel="noopener noreferrer" className="ml-2 whitespace-nowrap text-primary underline underline-offset-2">open in maps</a>}
+                      </span>
                     </li>
                   )}
                 </ul>

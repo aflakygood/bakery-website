@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Admin from "@/pages/Admin";
 
-const db = vi.hoisted(() => ({ cover_url: null as string | null, dropUpdates: vi.fn(), upload: vi.fn() }));
+const db = vi.hoisted(() => ({ cover_url: null as string | null, map: null as string | null, dropUpdates: vi.fn(), upload: vi.fn() }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   isSupabaseConfigured: true,
@@ -22,7 +22,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       let patch: Record<string, unknown> | null = null;
       const result = () => table === "drops"
         ? { data: {
-          id: "drop", title: "this week", is_open: true, opens_at: null, closes_at: null, cover_url: db.cover_url,
+          id: "drop", title: "this week", is_open: true, opens_at: null, closes_at: null, cover_url: db.cover_url, pickup_map_url: db.map,
           pickup_date: null, pickup_start: null, pickup_end: null, pickup_location: "",
         }, error: null }
         : { data: [], error: null };
@@ -46,6 +46,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 beforeEach(() => {
   db.cover_url = null;
+  db.map = null;
   db.dropUpdates.mockClear();
   db.upload.mockClear();
   vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: () => "blob:preview", revokeObjectURL: vi.fn() }));
@@ -78,5 +79,28 @@ describe("admin drop cover image", () => {
     fireEvent.change(await screen.findByLabelText("change cover image"), { target: { files: [new File(["x"], "a.gif", { type: "image/gif" })] } });
     expect(await screen.findByRole("status")).toHaveTextContent("photos must be png, jpg or webp.");
     expect(screen.queryByText("unsaved changes")).not.toBeInTheDocument();
+  });
+});
+
+describe("admin pickup map link", () => {
+  it("saves an edited google maps link and clears it when emptied", async () => {
+    db.map = "https://maps.app.goo.gl/old";
+    render(<Admin />);
+    const input = await screen.findByLabelText(/google maps link/);
+    expect(input).toHaveValue("https://maps.app.goo.gl/old");
+    fireEvent.change(input, { target: { value: " https://maps.app.goo.gl/new " } });
+    fireEvent.click(screen.getByRole("button", { name: "save changes" }));
+    await waitFor(() => expect(db.dropUpdates).toHaveBeenCalledWith({ pickup_map_url: "https://maps.app.goo.gl/new" }));
+    fireEvent.change(await screen.findByLabelText(/google maps link/), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "save changes" }));
+    await waitFor(() => expect(db.dropUpdates).toHaveBeenCalledWith({ pickup_map_url: null }));
+  });
+
+  it("rejects a link that isn't a web address", async () => {
+    render(<Admin />);
+    fireEvent.change(await screen.findByLabelText(/google maps link/), { target: { value: "javascript:alert(1)" } });
+    fireEvent.click(screen.getByRole("button", { name: "save changes" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("the google maps link must start with https://.");
+    expect(db.dropUpdates).not.toHaveBeenCalled();
   });
 });

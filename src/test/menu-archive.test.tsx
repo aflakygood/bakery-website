@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OrderMenu from "@/components/OrderMenu";
 
-const db = vi.hoisted(() => ({ filters: vi.fn(), error: false, title: "Sunday Layer Drop", remaining: vi.fn() }));
+const db = vi.hoisted(() => ({ filters: vi.fn(), error: false, title: "Sunday Layer Drop", map: null as string | null, remaining: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   isSupabaseConfigured: true,
   supabase: {
@@ -21,7 +21,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         maybeSingle: async () => ({ data: {
           id: "drop", title: db.title, is_open: true,
           opens_at: "2020-01-01T00:00:00Z", closes_at: null,
-          pickup_date: null, pickup_start: null, pickup_end: null, pickup_location: "",
+          pickup_date: null, pickup_start: null, pickup_end: null, pickup_location: "summit park", pickup_map_url: db.map,
         } }),
         then: (resolve: (value: object) => unknown) => {
           const items = [
@@ -53,6 +53,7 @@ beforeEach(() => {
   db.filters.mockClear();
   db.error = false;
   db.title = "Sunday Layer Drop";
+  db.map = null;
   db.remaining.mockReset().mockResolvedValue({ data: 4 });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -81,5 +82,15 @@ describe("archived public menu items", () => {
     db.title = " ";
     render(<OrderMenu />);
     expect(await screen.findByRole("heading", { name: "this week's drop." })).toBeInTheDocument();
+  });
+
+  it("links the pickup location to the drop's map link only when one is set", async () => {
+    const { unmount } = render(<OrderMenu />);
+    await screen.findByText("summit park");
+    expect(screen.queryByRole("link", { name: "open in maps" })).not.toBeInTheDocument();
+    unmount();
+    db.map = "https://maps.app.goo.gl/abc";
+    render(<OrderMenu />);
+    expect(await screen.findByRole("link", { name: "open in maps" })).toHaveAttribute("href", "https://maps.app.goo.gl/abc");
   });
 });

@@ -4,9 +4,10 @@ import { Calendar, MapPin, ArrowRight } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { closesLabel, dropPhase, useNow, type DropSchedule } from "@/lib/drop";
+import { mapHref } from "@/lib/maps";
 import cover from "@/assets/drop-cover.jpg";
 
-type DropRow = PickupFields & DropSchedule & { id: string; title: string; cover_url?: string | null };
+type DropRow = PickupFields & DropSchedule & { id: string; title: string; cover_url?: string | null; pickup_map_url?: string | null };
 
 export default function Drop() {
   const [drop, setDrop] = useState<DropRow | null>(null);
@@ -43,7 +44,10 @@ export default function Drop() {
             </p>
             <p className="mt-3 flex items-start gap-2.5 font-mono text-[15px] text-primary/80">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{drop?.pickup_location || "near summit park, maple valley"}</span>
+              <span>
+                {drop?.pickup_location || "near summit park, maple valley"}
+                {mapHref(drop?.pickup_map_url) && <a href={mapHref(drop?.pickup_map_url)!} target="_blank" rel="noopener noreferrer" className="ml-2 whitespace-nowrap text-primary underline underline-offset-2">open in maps</a>}
+              </span>
             </p>
             <Link to="/preorder"
               className="mt-7 flex items-center justify-center gap-2 rounded-[6px] bg-primary px-5 py-4 font-mono text-[18px] lowercase tracking-brand text-primary-foreground transition-colors hover:bg-[hsl(var(--green-deep))]">

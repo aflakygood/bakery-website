@@ -5,6 +5,7 @@ import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { itemImage } from "@/lib/itemImage";
+import { mapHref } from "@/lib/maps";
 import { usePageMeta } from "@/lib/seo";
 import { MAX_VARIANTS, parseVariants, type Variant } from "@/lib/variants";
 import defaultCover from "@/assets/drop-cover.jpg";
@@ -17,7 +18,7 @@ type Order = { id: string; customer_name: string; email: string; phone: string; 
 type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; variants?: Variant[]; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null; archived: boolean };
 // Items in a stock group share the group's spots instead of having their own.
 type Group = { id: string; name: string; total_qty: number; sort: number };
-type Drop = PickupFields & DropSchedule & { id: string; title: string; is_draft?: boolean; cover_url?: string | null };
+type Drop = PickupFields & DropSchedule & { id: string; title: string; is_draft?: boolean; cover_url?: string | null; pickup_map_url?: string | null };
 
 // <input type="datetime-local"> works in the admin's local time; the database stores UTC.
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -30,7 +31,7 @@ const fromLocalInput = (value: string) => (value ? new Date(value).toISOString()
 const phaseLabel = { upcoming: "not live yet", open: "taking preorders", ended: "ended (shows sold out)", closed: "closed early" } as const;
 
 // cover_url is "" when the drop uses the site's default cover.
-type DropDraft = { title: string; cover_url: string; opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
+type DropDraft = { title: string; cover_url: string; opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string; pickup_map_url: string };
 // group is the key of a GroupRow, or "" when the item has its own spots.
 // variants: optional sizes/options, each with its own price; when present they replace the single price.
 type VariantDraft = { id: string; label: string; price: string };
@@ -48,6 +49,7 @@ const dropDraftOf = (d: Drop): DropDraft => ({
   pickup_start: d.pickup_start?.slice(0, 5) ?? "",
   pickup_end: d.pickup_end?.slice(0, 5) ?? "",
   pickup_location: d.pickup_location ?? "",
+  pickup_map_url: d.pickup_map_url ?? "",
 });
 const itemDraftOf = (i: Item): ItemDraft => ({
   name: i.name,
@@ -259,6 +261,9 @@ export default function Admin() {
     if (dropDraft.pickup_start !== base.pickup_start) dropPatch.pickup_start = dropDraft.pickup_start || null;
     if (dropDraft.pickup_end !== base.pickup_end) dropPatch.pickup_end = dropDraft.pickup_end || null;
     if (dropDraft.pickup_location !== base.pickup_location) dropPatch.pickup_location = dropDraft.pickup_location;
+    const mapUrl = dropDraft.pickup_map_url.trim();
+    if (mapUrl && !mapHref(mapUrl)) return setNotice({ ok: false, text: "the google maps link must start with https://." });
+    if (mapUrl !== base.pickup_map_url) dropPatch.pickup_map_url = mapUrl ? mapHref(mapUrl) : null;
     if (dropDraft.cover_url !== base.cover_url) dropPatch.cover_url = dropDraft.cover_url || null;
     if (dropDraft.opens_at && dropDraft.closes_at && dropDraft.closes_at <= dropDraft.opens_at)
       return setNotice({ ok: false, text: "closes must be after opens." });
@@ -605,6 +610,10 @@ export default function Admin() {
               </div>
               <label className="mt-3 block font-mono text-[11px] text-primary/60">location
                 <input className={field} value={dropDraft.pickup_location} onChange={(event) => editDrop({ pickup_location: event.target.value })} />
+              </label>
+              <label className="mt-3 block font-mono text-[11px] text-primary/60">google maps link (optional, shows "open in maps" next to the location)
+                <input type="url" inputMode="url" className={field} value={dropDraft.pickup_map_url} placeholder="https://maps.app.goo.gl/…"
+                  onChange={(event) => editDrop({ pickup_map_url: event.target.value })} />
               </label>
               <p className="mt-2 font-mono text-[12px] text-primary/70">
                 preview: {pickupWhen({ ...drop, pickup_date: dropDraft.pickup_date || null, pickup_start: dropDraft.pickup_start || null, pickup_end: dropDraft.pickup_end || null })}
