@@ -345,7 +345,7 @@ export default function OrderMenu() {
     <section id="order" className="relative pb-[60px] pt-10 md:pb-[108px] md:pt-14">
       <div className="mx-auto max-w-[1100px] px-6 md:px-10">
         <div className="flex flex-col items-center text-center">
-          <h2 className="font-display text-4xl font-black tracking-brand text-primary md:text-6xl">this week's drop.</h2>
+          <h2 className="font-display text-4xl font-black tracking-brand text-primary md:text-6xl">{drop?.title?.trim().replace(/\.+$/, "") || "this week's drop"}.</h2>
         </div>
 
         <motion.article

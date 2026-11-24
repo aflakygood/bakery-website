@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OrderMenu from "@/components/OrderMenu";
 
-const db = vi.hoisted(() => ({ filters: vi.fn(), error: false, remaining: vi.fn() }));
+const db = vi.hoisted(() => ({ filters: vi.fn(), error: false, title: "Sunday Layer Drop", remaining: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   isSupabaseConfigured: true,
   supabase: {
@@ -19,7 +19,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         order: () => query,
         limit: () => query,
         maybeSingle: async () => ({ data: {
-          id: "drop", title: "this week", is_open: true,
+          id: "drop", title: db.title, is_open: true,
           opens_at: "2020-01-01T00:00:00Z", closes_at: null,
           pickup_date: null, pickup_start: null, pickup_end: null, pickup_location: "",
         } }),
@@ -52,6 +52,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", Observer);
   db.filters.mockClear();
   db.error = false;
+  db.title = "Sunday Layer Drop";
   db.remaining.mockReset().mockResolvedValue({ data: 4 });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -71,5 +72,14 @@ describe("archived public menu items", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the menu. Please refresh and try again.");
     expect(screen.queryByText("next drop coming soon.")).not.toBeInTheDocument();
     expect(db.remaining).not.toHaveBeenCalled();
+  });
+
+  it("titles the menu with the drop's name, falling back to this week's drop", async () => {
+    const { unmount } = render(<OrderMenu />);
+    expect(await screen.findByRole("heading", { name: "Sunday Layer Drop." })).toBeInTheDocument();
+    unmount();
+    db.title = " ";
+    render(<OrderMenu />);
+    expect(await screen.findByRole("heading", { name: "this week's drop." })).toBeInTheDocument();
   });
 });
