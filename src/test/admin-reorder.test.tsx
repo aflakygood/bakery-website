@@ -62,7 +62,9 @@ describe("admin menu reordering", () => {
     await screen.findByLabelText("description for focaccia");
     expect(screen.getByRole("button", { name: "move focaccia up" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "move danish down" })).toBeDisabled();
+    expect(screen.getByLabelText("position 3 of 3")).toHaveTextContent("3/3");
     fireEvent.click(screen.getByRole("button", { name: "move danish up" }));
+    expect(screen.getByLabelText("position 2 of 3")).toHaveTextContent("2/3");
     expect(names()).toEqual(["focaccia", "danish", "croissant"]);
     expect(screen.getByText("unsaved changes")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "move focaccia down" }));

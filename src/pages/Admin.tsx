@@ -612,6 +612,13 @@ export default function Admin() {
                         <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-sm bg-secondary">
                           <img src={img.src} alt="" className="h-full w-full object-cover" />
                         </div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <button onClick={() => moveRow(row.key, -1)} disabled={saving || rowIndex === 0} aria-label={`move ${label} up`}
+                            className="rounded-sm border border-primary/30 p-1 text-primary disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                          <span className="font-mono text-[11px] text-primary/70" aria-label={`position ${rowIndex + 1} of ${rows.length}`}>{rowIndex + 1}/{rows.length}</span>
+                          <button onClick={() => moveRow(row.key, 1)} disabled={saving || rowIndex === rows.length - 1} aria-label={`move ${label} down`}
+                            className="rounded-sm border border-primary/30 p-1 text-primary disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                        </div>
                         <label className="mt-2 block cursor-pointer text-center font-mono text-[11px] text-primary underline focus-within:outline focus-within:outline-2">
                           change photo
                           <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label={`change photo for ${label}`}
@@ -689,12 +696,6 @@ export default function Admin() {
                               {groupRow ? `sold ${sold(item)} · shares ${groupName} spots` : `sold ${sold(item)} / ${item.total_qty}`}
                             </p>
                           )}
-                          <span className="flex items-center gap-1">
-                            <button onClick={() => moveRow(row.key, -1)} disabled={saving || rowIndex === 0} aria-label={`move ${label} up`}
-                              className="rounded-sm border border-primary/30 p-1 text-primary disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
-                            <button onClick={() => moveRow(row.key, 1)} disabled={saving || rowIndex === rows.length - 1} aria-label={`move ${label} down`}
-                              className="rounded-sm border border-primary/30 p-1 text-primary disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
-                          </span>
                           <button onClick={() => row.id ? setConfirmingItem(row) : removeItem(row)} disabled={saving}
                             aria-label={`${row.id ? "delete" : "remove"} ${label}`}
                             className="font-mono text-[11px] text-destructive underline disabled:opacity-50">
