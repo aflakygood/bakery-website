@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { mapHref } from "@/lib/maps";
+import Countdown from "@/components/Countdown";
 import { closesLabel, dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
@@ -358,6 +359,7 @@ export default function OrderMenu() {
         >
           <div>
             <div className="mt-6 rounded-[6px] bg-secondary p-5 md:p-6">
+              <div className="flex flex-wrap items-center gap-2">
               <span className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-mono text-[11px] lowercase tracking-brand",
                 open ? "bg-primary text-primary-foreground" : "bg-background/90 text-primary")}>
                 <span className={cn("rounded-full", open ? "h-2 w-2 animate-pulse bg-primary-foreground" : "h-1.5 w-1.5 bg-primary opacity-40")} />
@@ -366,6 +368,8 @@ export default function OrderMenu() {
                   {open && drop?.closes_at && <> · preorder closes by <span className="font-semibold">{closesLabel(drop.closes_at)}</span></>}
                 </span>
               </span>
+              {open && drop?.closes_at && <Countdown to={drop.closes_at} className="bg-background text-primary" />}
+              </div>
               {!isSupabaseConfigured ? (
                 <p className="mt-4 font-mono text-[15px] leading-relaxed text-primary/80">preorders are coming soon.</p>
               ) : drop && (

@@ -4,6 +4,7 @@ import { Calendar, MapPin, ArrowRight } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { closesLabel, dropPhase, useNow, type DropSchedule } from "@/lib/drop";
+import Countdown from "@/components/Countdown";
 import { mapHref } from "@/lib/maps";
 import cover from "@/assets/drop-cover.jpg";
 
@@ -30,9 +31,12 @@ export default function Drop() {
         <article className="relative mx-auto mt-10 max-w-[640px] overflow-hidden rounded-[6px] bg-secondary md:mt-14">
           <img src={drop?.cover_url || cover} alt="multigrain sourdough loaf on a marble board" loading="lazy" className="block h-64 w-full object-cover object-[50%_48%] md:h-80" />
           {phase === "open" && drop?.closes_at && (
-            <span className="absolute right-3 top-3 rounded-full bg-background px-3.5 py-1.5 font-mono text-[12px] lowercase tracking-brand text-primary shadow-sm md:right-4 md:top-4 md:px-4 md:text-[14px]">
-              preorder closes by <span className="font-semibold">{closesLabel(drop.closes_at)}</span>
-            </span>
+            <div className="absolute right-3 top-3 flex flex-col items-end gap-1.5 md:right-4 md:top-4">
+              <span className="rounded-full bg-background px-3.5 py-1.5 font-mono text-[12px] lowercase tracking-brand text-primary shadow-sm md:px-4 md:text-[14px]">
+                preorder closes by <span className="font-semibold">{closesLabel(drop.closes_at)}</span>
+              </span>
+              <Countdown to={drop.closes_at} className="bg-background text-primary shadow-sm md:text-[13px]" />
+            </div>
           )}
           <div className="px-6 pb-7 pt-6 md:px-8 md:pb-8 md:pt-7">
             <h3 className="font-display text-2xl font-black leading-tight tracking-brand text-primary md:text-3xl">

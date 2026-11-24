@@ -41,3 +41,11 @@ export function closesLabel(closesAt: string): string {
   const time = `${parts.hour}${parts.minute === "00" ? "" : `:${parts.minute}`}${String(parts.dayPeriod).toLowerCase()}`;
   return `${time} ${parts.weekday} ${parts.month} ${parts.day}`.toLowerCase();
 }
+
+// e.g. "1d 4h 12m 30s", dropping leading zero units. Returns "" once the time has passed.
+export function countdownLabel(msLeft: number): string {
+  if (!(msLeft > 0)) return "";
+  const total = Math.ceil(msLeft / 1000);
+  const d = Math.floor(total / 86400), h = Math.floor((total % 86400) / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+  return [d && `${d}d`, (d || h) && `${h}h`, (d || h || m) && `${m}m`, `${s}s`].filter(Boolean).join(" ");
+}

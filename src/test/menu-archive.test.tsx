@@ -1,8 +1,9 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OrderMenu from "@/components/OrderMenu";
+import { countdownLabel } from "@/lib/drop";
 
-const db = vi.hoisted(() => ({ filters: vi.fn(), error: false, title: "Sunday Layer Drop", map: null as string | null, remaining: vi.fn() }));
+const db = vi.hoisted(() => ({ filters: vi.fn(), error: false, title: "Sunday Layer Drop", map: null as string | null, closes: null as string | null, remaining: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   isSupabaseConfigured: true,
   supabase: {
@@ -20,7 +21,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         limit: () => query,
         maybeSingle: async () => ({ data: {
           id: "drop", title: db.title, is_open: true,
-          opens_at: "2020-01-01T00:00:00Z", closes_at: null,
+          opens_at: "2020-01-01T00:00:00Z", closes_at: db.closes,
           pickup_date: null, pickup_start: null, pickup_end: null, pickup_location: "summit park", pickup_map_url: db.map,
         } }),
         then: (resolve: (value: object) => unknown) => {
@@ -54,6 +55,7 @@ beforeEach(() => {
   db.error = false;
   db.title = "Sunday Layer Drop";
   db.map = null;
+  db.closes = null;
   db.remaining.mockReset().mockResolvedValue({ data: 4 });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -92,5 +94,27 @@ describe("archived public menu items", () => {
     db.map = "https://maps.app.goo.gl/abc";
     render(<OrderMenu />);
     expect(await screen.findByRole("link", { name: "view in map" })).toHaveAttribute("href", "https://maps.app.goo.gl/abc");
+  });
+
+  it("counts down to the closing time next to the closes badge", async () => {
+    db.closes = new Date(Date.now() + (26 * 3600 + 5 * 60 + 30) * 1000).toISOString();
+    render(<OrderMenu />);
+    expect(await screen.findByRole("timer")).toHaveTextContent(/^closes in 1d 2h 5m \d+s$/);
+  });
+
+  it("shows no countdown when the drop has no closing time", async () => {
+    render(<OrderMenu />);
+    await screen.findByRole("button", { name: "view multigrain" });
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+  });
+});
+
+describe("countdownLabel", () => {
+  it("drops leading zero units and is empty once time is up", () => {
+    expect(countdownLabel((86400 + 3600 * 4 + 60 * 12 + 30) * 1000)).toBe("1d 4h 12m 30s");
+    expect(countdownLabel((3600 * 2 + 5) * 1000)).toBe("2h 0m 5s");
+    expect(countdownLabel(45 * 1000)).toBe("45s");
+    expect(countdownLabel(0)).toBe("");
+    expect(countdownLabel(-5)).toBe("");
   });
 });
