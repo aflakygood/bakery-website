@@ -46,7 +46,7 @@ export default function Drop() {
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 {drop?.pickup_location || "near summit park, maple valley"}
-                {mapHref(drop?.pickup_map_url) && <a href={mapHref(drop?.pickup_map_url)!} target="_blank" rel="noopener noreferrer" className="ml-2 whitespace-nowrap text-primary underline underline-offset-2">open in maps</a>}
+                {mapHref(drop?.pickup_map_url) && <a href={mapHref(drop?.pickup_map_url)!} target="_blank" rel="noopener noreferrer" className="ml-2 whitespace-nowrap text-primary underline underline-offset-2">view in map</a>}
               </span>
             </p>
             <Link to="/preorder"

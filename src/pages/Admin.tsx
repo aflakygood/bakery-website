@@ -611,7 +611,7 @@ export default function Admin() {
               <label className="mt-3 block font-mono text-[11px] text-primary/60">location
                 <input className={field} value={dropDraft.pickup_location} onChange={(event) => editDrop({ pickup_location: event.target.value })} />
               </label>
-              <label className="mt-3 block font-mono text-[11px] text-primary/60">google maps link (optional, shows "open in maps" next to the location)
+              <label className="mt-3 block font-mono text-[11px] text-primary/60">google maps link (optional, shows "view in map" next to the location)
                 <input type="url" inputMode="url" className={field} value={dropDraft.pickup_map_url} placeholder="https://maps.app.goo.gl/…"
                   onChange={(event) => editDrop({ pickup_map_url: event.target.value })} />
               </label>

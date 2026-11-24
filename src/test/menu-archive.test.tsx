@@ -87,10 +87,10 @@ describe("archived public menu items", () => {
   it("links the pickup location to the drop's map link only when one is set", async () => {
     const { unmount } = render(<OrderMenu />);
     await screen.findByText("summit park");
-    expect(screen.queryByRole("link", { name: "open in maps" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "view in map" })).not.toBeInTheDocument();
     unmount();
     db.map = "https://maps.app.goo.gl/abc";
     render(<OrderMenu />);
-    expect(await screen.findByRole("link", { name: "open in maps" })).toHaveAttribute("href", "https://maps.app.goo.gl/abc");
+    expect(await screen.findByRole("link", { name: "view in map" })).toHaveAttribute("href", "https://maps.app.goo.gl/abc");
   });
 });

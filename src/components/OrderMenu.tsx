@@ -379,7 +379,7 @@ export default function OrderMenu() {
                       <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                       <span>
                         {drop.pickup_location}
-                        {mapHref(drop.pickup_map_url) && <a href={mapHref(drop.pickup_map_url)!} target="_blank" rel="noopener noreferrer" className="ml-2 whitespace-nowrap text-primary underline underline-offset-2">open in maps</a>}
+                        {mapHref(drop.pickup_map_url) && <a href={mapHref(drop.pickup_map_url)!} target="_blank" rel="noopener noreferrer" className="ml-2 whitespace-nowrap text-primary underline underline-offset-2">view in map</a>}
                       </span>
                     </li>
                   )}
