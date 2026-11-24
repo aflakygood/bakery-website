@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { pickupWhen, type PickupFields } from "@/lib/pickup";
@@ -141,7 +142,9 @@ export default function Admin() {
   };
   const removedGroups = groups.filter((g) => !groupRows.some((row) => row.id === g.id));
   const removedItems = items.filter((item) => !item.archived && !rows.some((row) => row.id === item.id));
-  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || rows.some(rowChanged) || groupRows.some(groupChanged) || removedGroups.length > 0 || removedItems.length > 0);
+  const savedOrder = items.filter((item) => !item.archived).map((item) => item.id);
+  const orderChanged = !same(rows.filter((row) => row.id).map((row) => row.id), savedOrder);
+  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || orderChanged || rows.some(rowChanged) || groupRows.some(groupChanged) || removedGroups.length > 0 || removedItems.length > 0);
 
   useEffect(() => {
     if (!dirty) return;
@@ -202,6 +205,16 @@ export default function Admin() {
   const removeVariant = (key: string, id: string) => {
     setNotice(null);
     setRows((all) => all.map((row) => (row.key === key ? { ...row, draft: { ...row.draft, variants: row.draft.variants.filter((v) => v.id !== id) } } : row)));
+  };
+  const moveRow = (key: string, offset: -1 | 1) => {
+    setNotice(null);
+    setRows((all) => {
+      const from = all.findIndex((row) => row.key === key), to = from + offset;
+      if (from < 0 || to < 0 || to >= all.length) return all;
+      const next = [...all];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
   };
   const removeItem = (row: Row) => {
     if (row.preview) URL.revokeObjectURL(row.preview);
@@ -287,6 +300,12 @@ export default function Admin() {
       setGroupRows((all) => all.map((r) => (r.key === row.key ? { ...r, id: result.data.id } : r)));
     }
     let nextSort = Math.max(0, ...items.map((item) => item.sort)) + 1;
+    // Every row's stored sort value, so the menu order can be rewritten once everything is saved.
+    const sorts = new Map<string, { id: string; sort: number }>();
+    for (const row of rows) {
+      const item = row.id ? items.find((i) => i.id === row.id) : undefined;
+      if (item) sorts.set(row.key, { id: item.id, sort: item.sort });
+    }
     for (const row of changed) {
       if (error) break;
       let imageUrl = row.draft.image_url;
@@ -301,9 +320,18 @@ export default function Admin() {
         ? await supabase.from("drop_items").update(values).eq("id", row.id).select("id").single()
         : await supabase.from("drop_items").insert({ ...values, drop_id: drop.id, sort: nextSort++ }).select("id").single();
       if (result.error) { error = result.error.message; break; }
+      if (!row.id) sorts.set(row.key, { id: result.data.id, sort: nextSort - 1 });
       // Record progress so a retry after a partial failure doesn't re-insert or re-upload.
       if (row.preview) URL.revokeObjectURL(row.preview);
       updateRow(row.key, { id: result.data.id, file: null, preview: null, draft: { ...row.draft, name: values.name, image_url: imageUrl } });
+    }
+    const ordered = rows.map((row) => sorts.get(row.key));
+    if (!error && ordered.every(Boolean) && ordered.some((entry, i) => i > 0 && entry!.sort <= ordered[i - 1]!.sort)) {
+      for (const [index, entry] of ordered.entries()) {
+        if (entry!.sort === index + 1) continue;
+        const result = await supabase.from("drop_items").update({ sort: index + 1 }).eq("id", entry!.id).eq("drop_id", drop.id).select("id").single();
+        if (result.error) { error = result.error.message; break; }
+      }
     }
     for (const item of removedItems) {
       if (error) break;
@@ -570,7 +598,7 @@ export default function Admin() {
             </button>
             <p className="mt-6 font-mono text-[11px] text-primary/60">menu items</p>
             <ul className="mt-1 space-y-3">
-              {rows.map((row) => {
+              {rows.map((row, rowIndex) => {
                 const d = row.draft;
                 const img = row.preview ? { src: row.preview } : itemImage(d.name, d.image_url);
                 const item = row.id ? items.find((i) => i.id === row.id) : undefined;
@@ -661,6 +689,12 @@ export default function Admin() {
                               {groupRow ? `sold ${sold(item)} · shares ${groupName} spots` : `sold ${sold(item)} / ${item.total_qty}`}
                             </p>
                           )}
+                          <span className="flex items-center gap-1">
+                            <button onClick={() => moveRow(row.key, -1)} disabled={saving || rowIndex === 0} aria-label={`move ${label} up`}
+                              className="rounded-sm border border-primary/30 p-1 text-primary disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                            <button onClick={() => moveRow(row.key, 1)} disabled={saving || rowIndex === rows.length - 1} aria-label={`move ${label} down`}
+                              className="rounded-sm border border-primary/30 p-1 text-primary disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                          </span>
                           <button onClick={() => row.id ? setConfirmingItem(row) : removeItem(row)} disabled={saving}
                             aria-label={`${row.id ? "delete" : "remove"} ${label}`}
                             className="font-mono text-[11px] text-destructive underline disabled:opacity-50">
