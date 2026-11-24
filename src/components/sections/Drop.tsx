@@ -6,7 +6,7 @@ import { pickupWhen, type PickupFields } from "@/lib/pickup";
 import { closesLabel, dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import cover from "@/assets/drop-cover.jpg";
 
-type DropRow = PickupFields & DropSchedule & { id: string; title: string };
+type DropRow = PickupFields & DropSchedule & { id: string; title: string; cover_url?: string | null };
 
 export default function Drop() {
   const [drop, setDrop] = useState<DropRow | null>(null);
@@ -27,7 +27,7 @@ export default function Drop() {
       <div className="mx-auto max-w-[1100px] px-6 md:px-10">
         <h2 className="text-center font-display text-4xl font-black tracking-brand text-primary md:text-6xl">this week's drop.</h2>
         <article className="relative mx-auto mt-10 max-w-[640px] overflow-hidden rounded-[6px] bg-secondary md:mt-14">
-          <img src={cover} alt="multigrain sourdough loaf on a marble board" loading="lazy" className="block h-64 w-full object-cover object-[50%_48%] md:h-80" />
+          <img src={drop?.cover_url || cover} alt="multigrain sourdough loaf on a marble board" loading="lazy" className="block h-64 w-full object-cover object-[50%_48%] md:h-80" />
           {phase === "open" && drop?.closes_at && (
             <span className="absolute right-3 top-3 rounded-full bg-background px-3.5 py-1.5 font-mono text-[12px] lowercase tracking-brand text-primary shadow-sm md:right-4 md:top-4 md:px-4 md:text-[14px]">
               preorder closes by <span className="font-semibold">{closesLabel(drop.closes_at)}</span>

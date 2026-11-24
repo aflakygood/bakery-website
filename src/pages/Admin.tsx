@@ -7,6 +7,7 @@ import { dropPhase, useNow, type DropSchedule } from "@/lib/drop";
 import { itemImage } from "@/lib/itemImage";
 import { usePageMeta } from "@/lib/seo";
 import { MAX_VARIANTS, parseVariants, type Variant } from "@/lib/variants";
+import defaultCover from "@/assets/drop-cover.jpg";
 import PreviousDrops from "@/components/admin/PreviousDrops";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -16,7 +17,7 @@ type Order = { id: string; customer_name: string; email: string; phone: string; 
 type Item = { id: string; name: string; description: string; ingredients: string; price_cents: number; variants?: Variant[]; total_qty: number; min_per_order: number; max_per_order: number; sort: number; image_url: string | null; group_id: string | null; archived: boolean };
 // Items in a stock group share the group's spots instead of having their own.
 type Group = { id: string; name: string; total_qty: number; sort: number };
-type Drop = PickupFields & DropSchedule & { id: string; title: string; is_draft?: boolean };
+type Drop = PickupFields & DropSchedule & { id: string; title: string; is_draft?: boolean; cover_url?: string | null };
 
 // <input type="datetime-local"> works in the admin's local time; the database stores UTC.
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -28,7 +29,8 @@ const toLocalInput = (iso: string | null) => {
 const fromLocalInput = (value: string) => (value ? new Date(value).toISOString() : null);
 const phaseLabel = { upcoming: "not live yet", open: "taking preorders", ended: "ended (shows sold out)", closed: "closed early" } as const;
 
-type DropDraft = { title: string; opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
+// cover_url is "" when the drop uses the site's default cover.
+type DropDraft = { title: string; cover_url: string; opens_at: string; closes_at: string; pickup_date: string; pickup_start: string; pickup_end: string; pickup_location: string };
 // group is the key of a GroupRow, or "" when the item has its own spots.
 // variants: optional sizes/options, each with its own price; when present they replace the single price.
 type VariantDraft = { id: string; label: string; price: string };
@@ -39,6 +41,7 @@ type GroupRow = { key: string; id: string | null; draft: GroupDraft };
 type Row = { key: string; id: string | null; draft: ItemDraft; file: File | null; preview: string | null };
 const dropDraftOf = (d: Drop): DropDraft => ({
   title: d.title ?? "",
+  cover_url: d.cover_url ?? "",
   opens_at: toLocalInput(d.opens_at),
   closes_at: toLocalInput(d.closes_at),
   pickup_date: d.pickup_date ?? "",
@@ -74,6 +77,8 @@ export default function Admin() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [liveDrop, setLiveDrop] = useState<{ title: string; schedule: DropSchedule; paidOrders: number } | null>(null);
   const [dropDraft, setDropDraft] = useState<DropDraft | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupRows, setGroupRows] = useState<GroupRow[]>([]);
@@ -95,10 +100,15 @@ export default function Admin() {
 
   // resetDrafts=false keeps unsaved edits (e.g. after marking an order picked up).
   // kind picks which drop the editor works on: the live (latest) drop, or the planned future drop.
+  const resetCover = () => {
+    if (coverPreview) URL.revokeObjectURL(coverPreview);
+    setCoverFile(null);
+    setCoverPreview(null);
+  };
   const load = async (resetDrafts = true, kind: "future" | "current" = "current") => {
     const { data: latestDrop } = await supabase.from("drops").select("*").eq("is_draft", kind === "future").order("created_at", { ascending: false }).limit(1).maybeSingle();
     setDrop(latestDrop);
-    if (resetDrafts) setDropDraft(latestDrop ? dropDraftOf(latestDrop) : null);
+    if (resetDrafts) { setDropDraft(latestDrop ? dropDraftOf(latestDrop) : null); resetCover(); }
     if (!latestDrop) return;
     const { data: dropGroups } = await supabase.from("item_groups").select("*").eq("drop_id", latestDrop.id).order("sort");
     setGroups((dropGroups ?? []) as Group[]);
@@ -144,7 +154,7 @@ export default function Admin() {
   const removedItems = items.filter((item) => !item.archived && !rows.some((row) => row.id === item.id));
   const savedOrder = items.filter((item) => !item.archived).map((item) => item.id);
   const orderChanged = !same(rows.filter((row) => row.id).map((row) => row.id), savedOrder);
-  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || orderChanged || rows.some(rowChanged) || groupRows.some(groupChanged) || removedGroups.length > 0 || removedItems.length > 0);
+  const dirty = !!drop && !!dropDraft && (!same(dropDraft, dropDraftOf(drop)) || !!coverFile || orderChanged || rows.some(rowChanged) || groupRows.some(groupChanged) || removedGroups.length > 0 || removedItems.length > 0);
 
   useEffect(() => {
     if (!dirty) return;
@@ -158,6 +168,19 @@ export default function Admin() {
   const editItem = (key: string, patch: Partial<ItemDraft>) => {
     setNotice(null);
     setRows((all) => all.map((row) => (row.key === key ? { ...row, draft: { ...row.draft, ...patch } } : row)));
+  };
+  const pickCover = (file: File | undefined) => {
+    if (!file) return;
+    if (!photoTypes[file.type]) return setNotice({ ok: false, text: "photos must be png, jpg or webp." });
+    if (file.size > 5 * 1024 * 1024) return setNotice({ ok: false, text: "photos must be under 5 MB." });
+    if (coverPreview) URL.revokeObjectURL(coverPreview);
+    setNotice(null);
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
+  };
+  const clearCover = () => {
+    resetCover();
+    editDrop({ cover_url: "" });
   };
   const pickPhoto = (row: Row, file: File | undefined) => {
     if (!file) return;
@@ -236,6 +259,7 @@ export default function Admin() {
     if (dropDraft.pickup_start !== base.pickup_start) dropPatch.pickup_start = dropDraft.pickup_start || null;
     if (dropDraft.pickup_end !== base.pickup_end) dropPatch.pickup_end = dropDraft.pickup_end || null;
     if (dropDraft.pickup_location !== base.pickup_location) dropPatch.pickup_location = dropDraft.pickup_location;
+    if (dropDraft.cover_url !== base.cover_url) dropPatch.cover_url = dropDraft.cover_url || null;
     if (dropDraft.opens_at && dropDraft.closes_at && dropDraft.closes_at <= dropDraft.opens_at)
       return setNotice({ ok: false, text: "closes must be after opens." });
 
@@ -282,7 +306,13 @@ export default function Admin() {
 
     setSaving(true);
     let error: string | null = null;
-    if (Object.keys(dropPatch).length) {
+    if (coverFile) {
+      const path = `${crypto.randomUUID()}.${photoTypes[coverFile.type]}`;
+      const upload = await supabase.storage.from("product-images").upload(path, coverFile, { contentType: coverFile.type, cacheControl: "31536000" });
+      if (upload.error) error = upload.error.message;
+      else dropPatch.cover_url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+    }
+    if (!error && Object.keys(dropPatch).length) {
       const result = await supabase.from("drops").update(dropPatch).eq("id", drop.id);
       if (result.error) error = result.error.message;
     }
@@ -351,6 +381,7 @@ export default function Admin() {
     if (!drop) return;
     setNotice(null);
     setDropDraft(dropDraftOf(drop));
+    resetCover();
     rows.forEach((row) => row.preview && URL.revokeObjectURL(row.preview));
     setRows(rowsOf(items));
     setGroupRows(groupRowsOf(groups));
@@ -534,6 +565,20 @@ export default function Admin() {
               </div>
             </div>
             {dropDraft && (<>
+              <div className="mt-4 flex items-end gap-4">
+                <img src={coverPreview ?? (dropDraft.cover_url || defaultCover)} alt="" className="h-24 w-40 rounded-sm bg-background object-cover" />
+                <div className="font-mono text-[11px] text-primary/60">
+                  <p>cover image (shown on the homepage)</p>
+                  <label className="mt-1 inline-block cursor-pointer text-primary underline focus-within:outline focus-within:outline-2">
+                    change cover image
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="change cover image"
+                      onChange={(event) => { pickCover(event.target.files?.[0]); event.target.value = ""; }} />
+                  </label>
+                  {(coverFile || dropDraft.cover_url) && (
+                    <button onClick={clearCover} className="ml-3 text-primary/60 underline">use default</button>
+                  )}
+                </div>
+              </div>
               <label className="mt-4 block font-mono text-[11px] text-primary/60">drop title (shown on the homepage)
                 <input className={field} maxLength={80} value={dropDraft.title} onChange={(event) => editDrop({ title: event.target.value })} />
               </label>
